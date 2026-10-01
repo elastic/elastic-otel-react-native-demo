@@ -227,7 +227,9 @@ reachable. Do not carry this local clear-text configuration into production.
 
 ## Limitations
 
-- The demo follows the stock React Native template host shape.
+- The iOS host adopts the UIScene lifecycle, which the stock React Native
+  template lacks, because Xcode 27 builds terminate at launch on iOS 27
+  without it. Otherwise the demo follows the stock template host shape.
 - The **Crash** button throws an uncaught JavaScript error. The shared verifier
   asserts its `app.crash` export on Android only; iOS crash export is not
   asserted.
