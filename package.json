@@ -1,0 +1,63 @@
+{
+  "name": "react-native-demo-app",
+  "version": "0.0.1",
+  "private": true,
+  "homepage": "https://github.com/elastic/elastic-otel-react-native-demo#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/elastic/elastic-otel-react-native-demo.git"
+  },
+  "bugs": {
+    "url": "https://github.com/elastic/elastic-otel-react-native-demo/issues"
+  },
+  "scripts": {
+    "android": "react-native run-android",
+    "android:build": "cd android && ./gradlew :app:assembleRelease",
+    "android:check": "npx --no-install elastic-otel-react-native setup-android --project-root . --check",
+    "check": "./checks.sh",
+    "e2e:test": "./scripts/e2e/test-verify.sh",
+    "format:check": "prettier --check App.tsx __tests__/App.test.tsx README.md package.json app.json .eslintrc.js jest.config.js metro.config.js \"scripts/**/*.md\" \"scripts/**/*.mjs\"",
+    "ios": "npm run ios:run",
+    "ios:autolink:check": "node scripts/check-ios-autolinking.mjs",
+    "ios:build": "mkdir -p build/tmp && GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.bareRepository GIT_CONFIG_VALUE_0=all TMPDIR=\"$PWD/build/tmp\" xcodebuild -workspace ios/ReactNativeDemoApp.xcworkspace -scheme ReactNativeDemoApp -configuration Release -destination \"generic/platform=iOS Simulator\" -derivedDataPath ios/build CODE_SIGNING_ALLOWED=NO",
+    "ios:check": "npx --no-install elastic-otel-react-native setup-ios --project-root . --check && npm run ios:autolink:check && npm run ios:format:check && mkdir -p build/tmp && cd ios && TMPDIR=\"../build/tmp\" pod install --deployment",
+    "ios:format:check": "xcrun swift format lint --strict --recursive ios/ReactNativeDemoApp",
+    "ios:install": "npx --no-install elastic-otel-react-native setup-ios --project-root . && mkdir -p build/tmp && cd ios && TMPDIR=\"../build/tmp\" pod install",
+    "ios:run": "mkdir -p build/tmp && GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.bareRepository GIT_CONFIG_VALUE_0=all TMPDIR=\"$PWD/build/tmp\" react-native run-ios",
+    "lint": "eslint .",
+    "lockfile:check": "node scripts/check-lockfile.mjs",
+    "start": "react-native start",
+    "test": "jest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@elastic/otel-react-native": "file:../elastic-otel-react-native",
+    "react": "19.2.3",
+    "react-native": "0.87.1",
+    "react-native-safe-area-context": "^5.9.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@babel/preset-env": "^7.25.3",
+    "@babel/runtime": "^7.25.0",
+    "@react-native-community/cli": "20.2.0",
+    "@react-native-community/cli-platform-android": "20.2.0",
+    "@react-native-community/cli-platform-ios": "20.2.0",
+    "@react-native/babel-preset": "0.87.1",
+    "@react-native/eslint-config": "0.87.1",
+    "@react-native/jest-preset": "0.87.1",
+    "@react-native/metro-config": "0.87.1",
+    "@react-native/typescript-config": "0.87.1",
+    "@types/jest": "^29.5.13",
+    "@types/react": "^19.2.0",
+    "@types/react-test-renderer": "^19.1.0",
+    "eslint": "^8.19.0",
+    "jest": "^29.6.3",
+    "prettier": "2.8.8",
+    "react-test-renderer": "19.2.3",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">= 22.11.0"
+  }
+}

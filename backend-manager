@@ -1,0 +1,80 @@
+#!/bin/sh
+
+set -eu
+
+CONTAINER_NAME="react-native-weather-backend"
+BACKEND_VERSION="0.0.2"
+BACKEND_IMAGE="ghcr.io/elastic/shared-otel-sdk-demo/backend:${BACKEND_VERSION}"
+NETWORK_NAME="elastic-start-local_default"
+TIMEOUT=60
+
+usage() {
+  echo "Usage: $0 {start|stop|logs|uninstall}"
+  echo ""
+  echo "  start      Pull and run the backend service"
+  echo "  stop       Stop the running backend container"
+  echo "  logs       Follow backend container logs"
+  echo "  uninstall  Stop the container and remove it and its image"
+  exit 1
+}
+
+cmd_start() {
+  if ! docker network inspect "$NETWORK_NAME" >/dev/null 2>&1; then
+    echo "Error: Docker network '$NETWORK_NAME' was not found."
+    echo "Start the local Elastic stack before starting the backend."
+    exit 1
+  fi
+
+  docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
+  docker pull "$BACKEND_IMAGE"
+  docker run -d --name "$CONTAINER_NAME" \
+    --network "$NETWORK_NAME" \
+    -p 8080:8080 \
+    -e OTEL_SERVICE_NAME=weather-demo-backend \
+    -e OTEL_EXPORTER_OTLP_ENDPOINT=http://edot-collector:4318 \
+    "$BACKEND_IMAGE"
+
+  echo "Waiting for $CONTAINER_NAME to be ready..."
+  start_time=$(date +%s)
+  until curl -fsS http://localhost:8080/v1/health >/dev/null 2>&1; do
+    elapsed=$(( $(date +%s) - start_time ))
+    if [ "$elapsed" -ge "$TIMEOUT" ]; then
+      echo "Error: $CONTAINER_NAME did not become ready within ${TIMEOUT}s."
+      docker logs "$CONTAINER_NAME"
+      exit 1
+    fi
+    sleep 1
+  done
+
+  echo "$CONTAINER_NAME is running on http://localhost:8080"
+}
+
+cmd_stop() {
+  if docker ps -q --filter "name=^${CONTAINER_NAME}$" | grep -q .; then
+    docker stop "$CONTAINER_NAME"
+  else
+    echo "$CONTAINER_NAME is not running."
+  fi
+}
+
+cmd_logs() {
+  docker logs -f "$CONTAINER_NAME"
+}
+
+cmd_uninstall() {
+  cmd_stop
+  if docker ps -a -q --filter "name=^${CONTAINER_NAME}$" | grep -q .; then
+    docker rm "$CONTAINER_NAME"
+  fi
+  if docker image inspect "$BACKEND_IMAGE" >/dev/null 2>&1; then
+    docker rmi "$BACKEND_IMAGE"
+  fi
+}
+
+case "${1:-}" in
+  start) cmd_start ;;
+  stop) cmd_stop ;;
+  logs) cmd_logs ;;
+  uninstall) cmd_uninstall ;;
+  *) usage ;;
+esac
