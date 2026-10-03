@@ -246,6 +246,8 @@ log_span=$(field "$ARTIFACT_DIR/startup-log.json" '._source."span.id" // ._sourc
 root_scope=$(field "$ARTIFACT_DIR/startup-root.json" '._source.scope.name')
 child_scope=$(field "$ARTIFACT_DIR/startup-child.json" '._source.scope.name')
 log_scope=$(field "$ARTIFACT_DIR/startup-log.json" '._source.scope.name')
+root_environment=$(field "$ARTIFACT_DIR/startup-root.json" '._source."deployment.environment.name" // ._source.resource.attributes."deployment.environment.name"')
+root_namespace=$(field "$ARTIFACT_DIR/startup-root.json" '._source."service.namespace" // ._source.resource.attributes."service.namespace"')
 error_trace=$(field "$ARTIFACT_DIR/error-log.json" '._source."trace.id" // ._source.trace_id')
 error_span=$(field "$ARTIFACT_DIR/error-log.json" '._source."span.id" // ._source.span_id')
 error_severity=$(field "$ARTIFACT_DIR/error-log.json" '._source."log.level" // ._source.severity_text // ._source.severity')
@@ -261,9 +263,20 @@ assert_equal "Startup child trace.id" "$root_trace" "$child_trace"
 assert_equal "Startup child parent.id" "$root_span" "$child_parent"
 assert_equal "Startup log trace.id" "$child_trace" "$log_trace"
 assert_equal "Startup log span.id" "$child_span" "$log_span"
-assert_equal "Startup root instrumentation scope" "co.elastic.weather-demo" "$root_scope"
-assert_equal "Startup child instrumentation scope" "co.elastic.weather-demo" "$child_scope"
-assert_equal "Startup log instrumentation scope" "co.elastic.weather-demo" "$log_scope"
+if [[ "$PLATFORM" == "android" ]]; then
+  # The Android host bootstraps from elastic-otel-config.json, which keeps the
+  # bridge's default scope and sets the resource identity below.
+  startup_scope="@elastic/otel-react-native"
+else
+  startup_scope="co.elastic.weather-demo"
+fi
+assert_equal "Startup root instrumentation scope" "$startup_scope" "$root_scope"
+assert_equal "Startup child instrumentation scope" "$startup_scope" "$child_scope"
+assert_equal "Startup log instrumentation scope" "$startup_scope" "$log_scope"
+if [[ "$PLATFORM" == "android" ]]; then
+  assert_equal "Startup deployment.environment.name" "local" "$root_environment"
+  assert_equal "Startup service.namespace" "weather-demo" "$root_namespace"
+fi
 
 if [[ -n "$error_trace" || -n "$error_span" ]]; then
   echo "The forecast ERROR log unexpectedly contains span correlation." >&2

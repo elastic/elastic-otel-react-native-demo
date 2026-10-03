@@ -29,7 +29,8 @@ npm run ios:build
 Set `IOS_SIMULATOR_UDID` when more than one simulator is booted. The verifier
 first refuses any existing `weather-demo-react-native` or
 `weather-demo-backend` documents. It then installs and launches the built
-release app with `adb` or `xcrun simctl`, and tells you when to fetch Berlin
+release app with `adb` or `xcrun simctl`, forwards the Android emulator's
+OTLP port with `adb reverse tcp:4318 tcp:4318`, and tells you when to fetch Berlin
 successfully and New York unsuccessfully. The UI actions remain operator-driven
 so both platforms exercise the same visible app behavior.
 
@@ -52,7 +53,10 @@ are refused before any deletion request.
 only an evidence-inspection result and never fresh acceptance.
 
 The verifier polls Elasticsearch for up to three minutes per assertion. It
-checks the startup root/child relationship, correlated startup log, independent
+checks the startup root/child relationship, the startup instrumentation scope,
+on Android the `deployment.environment.name=local` and
+`service.namespace=weather-demo` resource attributes from
+`elastic-otel-config.json`, the correlated startup log, independent
 ERROR log, automatic `fetch-forecast-button` `app.widget.click` EventRecord,
 backend span, auto-instrumented app HTTP span sharing the backend's
 `trace.id`, and, on Android, the `app.crash` record with `exception.type`,

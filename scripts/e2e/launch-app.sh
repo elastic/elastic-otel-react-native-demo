@@ -15,6 +15,8 @@ case "$PLATFORM" in
     fi
 
     adb install -r "$APK"
+    # The app exports OTLP to localhost:4318; forward it to the host collector.
+    adb reverse tcp:4318 tcp:4318
     adb shell am force-stop com.reactnativedemoapp
     adb shell am start -n com.reactnativedemoapp/.MainActivity
     echo "E2E_DEVICE_ID=$(adb get-serialno)"

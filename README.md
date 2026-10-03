@@ -68,9 +68,16 @@ and W3C propagation. There is no manual request span.
 Native initialization in
 [`MainApplication.kt`](android/app/src/main/java/com/reactnativedemoapp/MainApplication.kt)
 and [`AppDelegate.swift`](ios/ReactNativeDemoApp/AppDelegate.swift) runs before
-React Native loads. Both configure OTLP/HTTP, service name
-`weather-demo-react-native`, instrumentation scope `co.elastic.weather-demo`,
-and full session sampling. Remote management is not configured.
+React Native loads. Android reads
+[`elastic-otel-config.json`](elastic-otel-config.json), which the package's
+Gradle script copies into the app assets at build time. It configures
+OTLP/HTTP to `http://localhost:4318`, service name
+`weather-demo-react-native`, `deployment.environment.name=local`,
+`service.namespace=weather-demo`, and full session sampling, and keeps the
+package's default instrumentation scope `@elastic/otel-react-native`. iOS
+configures OTLP/HTTP, the same service name, instrumentation scope
+`co.elastic.weather-demo`, and full session sampling in code. Remote
+management is not configured.
 
 The package Babel plugin instruments the static
 `fetch-forecast-button` `Pressable` at build time. The app contains no manual
@@ -105,9 +112,14 @@ Elasticsearch, Kibana, and an Elastic Agent OTLP endpoint:
 curl -fsSL https://elastic.co/start-local | sh -s -- --edot
 ```
 
-The OTLP/HTTP endpoint is available at `http://localhost:4318`. Android reaches
-the host through `http://10.0.2.2:4318`; the iOS Simulator uses
-`http://localhost:4318`.
+The OTLP/HTTP endpoint is available at `http://localhost:4318`. The iOS
+Simulator reaches it directly. The Android app also exports to
+`http://localhost:4318`; forward that port from the emulator to the host
+before you launch the app:
+
+```sh
+adb reverse tcp:4318 tcp:4318
+```
 
 ### 2. Start the instrumented backend
 
@@ -146,14 +158,19 @@ launch it:
 npm run android:check
 npm run android:build
 adb install -r android/app/build/outputs/apk/release/app-release.apk
+adb reverse tcp:4318 tcp:4318
 adb shell am start -n com.reactnativedemoapp/.MainActivity
 ```
 
-For an interactive debug build with Metro, run:
+For an interactive debug build with Metro, forward the OTLP port first:
 
 ```sh
+adb reverse tcp:4318 tcp:4318
 npm run android
 ```
+
+`adb reverse` lasts until the emulator restarts or adb reconnects. Run it again
+after either.
 
 ### 5. Run iOS
 
@@ -215,13 +232,15 @@ For more information, see the Android and iOS **Visualize telemetry** guidance:
 
 ## Emulator, simulator, and physical-device networking
 
-The checked-in Android configuration uses the emulator's `10.0.2.2` host alias.
-The iOS configuration uses `localhost`, which resolves to the development Mac
-from the iOS Simulator. Android network security and iOS App Transport Security
+The Android app sends OTLP to `localhost:4318`, which `adb reverse` forwards to
+the development machine, and reaches the backend through the emulator's
+`10.0.2.2` host alias. The iOS configuration uses `localhost`, which resolves
+to the development Mac from the iOS Simulator. Android network security and iOS App Transport Security
 allow only the local clear-text development paths needed by this demo.
 
 A physical device cannot use these simulator-specific assumptions. Replace the
-OTLP and backend URLs with the development machine's LAN address, update the
+OTLP URL in `elastic-otel-config.json` (Android) or `AppDelegate.swift` (iOS)
+and the backend URL with the development machine's LAN address, update the
 platform network policy where necessary, and ensure ports `4318` and `8080` are
 reachable. Do not carry this local clear-text configuration into production.
 
