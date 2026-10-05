@@ -73,11 +73,10 @@ React Native loads. Android reads
 Gradle script copies into the app assets at build time. It configures
 OTLP/HTTP to `http://localhost:4318`, service name
 `weather-demo-react-native`, `deployment.environment.name=local`,
-`service.namespace=weather-demo`, and full session sampling, and keeps the
-package's default instrumentation scope `@elastic/otel-react-native`. iOS
-configures OTLP/HTTP, the same service name, instrumentation scope
-`co.elastic.weather-demo`, and full session sampling in code. Remote
-management is not configured.
+`service.namespace=weather-demo`, and full session sampling. iOS configures
+OTLP/HTTP, the same service name, and full session sampling in code. On both
+platforms, spans and logs created through the package use the instrumentation
+scope `@elastic/otel-react-native`. Remote management is not configured.
 
 The package Babel plugin instruments the static
 `fetch-forecast-button` `Pressable` at build time. The app contains no manual

@@ -263,13 +263,7 @@ assert_equal "Startup child trace.id" "$root_trace" "$child_trace"
 assert_equal "Startup child parent.id" "$root_span" "$child_parent"
 assert_equal "Startup log trace.id" "$child_trace" "$log_trace"
 assert_equal "Startup log span.id" "$child_span" "$log_span"
-if [[ "$PLATFORM" == "android" ]]; then
-  # The Android host bootstraps from elastic-otel-config.json, which keeps the
-  # bridge's default scope and sets the resource identity below.
-  startup_scope="@elastic/otel-react-native"
-else
-  startup_scope="co.elastic.weather-demo"
-fi
+startup_scope="@elastic/otel-react-native"
 assert_equal "Startup root instrumentation scope" "$startup_scope" "$root_scope"
 assert_equal "Startup child instrumentation scope" "$startup_scope" "$child_scope"
 assert_equal "Startup log instrumentation scope" "$startup_scope" "$log_scope"
