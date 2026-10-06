@@ -54,10 +54,9 @@ only an evidence-inspection result and never fresh acceptance.
 
 The verifier polls Elasticsearch for up to three minutes per assertion. It
 checks the startup root/child relationship, the startup instrumentation scope
-`@elastic/otel-react-native` on both platforms, on Android the
-`deployment.environment.name=local` and
+`@elastic/otel-react-native` and the `deployment.environment.name=local` and
 `service.namespace=weather-demo` resource attributes from
-`elastic-otel-config.json`, the correlated startup log, independent
+`elastic-otel-config.json` on both platforms, the correlated startup log, independent
 ERROR log, automatic `fetch-forecast-button` `app.widget.click` EventRecord,
 backend span, auto-instrumented app HTTP span sharing the backend's
 `trace.id`, and, on Android, the `app.crash` record with `exception.type`,

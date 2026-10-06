@@ -14,15 +14,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
     do {
-      try ElasticOtelReactNative.initialize(
-        BootstrapConfiguration(
-          exportUrl: "http://localhost:4318",
-          authentication: .none,
-          transport: .http,
-          sessionSampleRate: 1.0,
-          serviceName: "weather-demo-react-native"
-        )
-      )
+      try ElasticOtelReactNative.initialize()
     } catch {
       fatalError("EDOT iOS bootstrap failed: \(error)")
     }
