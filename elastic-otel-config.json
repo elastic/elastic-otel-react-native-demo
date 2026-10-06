@@ -1,0 +1,11 @@
+{
+  "$schema": "./node_modules/@elastic/otel-react-native/elastic-otel-config.schema.json",
+  "exportUrl": "http://localhost:4318",
+  "exportProtocol": "http",
+  "sessionSampleRate": 1,
+  "resourceAttributes": {
+    "service.name": "weather-demo-react-native",
+    "deployment.environment.name": "local",
+    "service.namespace": "weather-demo"
+  }
+}

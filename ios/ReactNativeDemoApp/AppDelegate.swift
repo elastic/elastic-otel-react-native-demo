@@ -20,8 +20,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
           authentication: .none,
           transport: .http,
           sessionSampleRate: 1.0,
-          serviceName: "weather-demo-react-native",
-          instrumentationScopeName: "co.elastic.weather-demo"
+          serviceName: "weather-demo-react-native"
         )
       )
     } catch {

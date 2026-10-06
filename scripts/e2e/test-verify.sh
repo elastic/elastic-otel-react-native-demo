@@ -109,6 +109,7 @@ PATH="$fake_bin:$PATH" \
   "$LAUNCH" android "$TEMP_DIR/apps/app-release.apk" |
   grep -F "E2E_DEVICE_ID=emulator-5554" >/dev/null
 grep -F "adb install -r $TEMP_DIR/apps/app-release.apk" "$command_log" >/dev/null
+grep -F "adb reverse tcp:4318 tcp:4318" "$command_log" >/dev/null
 grep -F "adb shell am force-stop com.reactnativedemoapp" "$command_log" >/dev/null
 grep -F "adb shell am start -n com.reactnativedemoapp/.MainActivity" "$command_log" >/dev/null
 
@@ -153,8 +154,10 @@ case "$url" in
       hit '{"service.name":"weather-demo-react-native","log.level":"ERROR"}'
     elif [[ "$body" == *app.widget.id* ]]; then
       hit '{"service.name":"weather-demo-react-native","app.widget.id":"fetch-forecast-button","app.widget.name":"Fetch forecast","scope":{"name":"@elastic/otel-react-native.interactions"},"attributes":{"otel.event.name":"app.widget.click"}}'
+    elif [[ "${FAKE_OMIT_NAMESPACE:-0}" == "1" ]]; then
+      hit '{"service.name":"weather-demo-react-native","trace.id":"t1","span.id":"s1","parent.id":"s1","span.kind":"Client","scope":{"name":"@elastic/otel-react-native"},"deployment.environment.name":"local"}'
     else
-      hit '{"service.name":"weather-demo-react-native","trace.id":"t1","span.id":"s1","parent.id":"s1","span.kind":"Client","scope":{"name":"co.elastic.weather-demo"}}'
+      hit '{"service.name":"weather-demo-react-native","trace.id":"t1","span.id":"s1","parent.id":"s1","span.kind":"Client","scope":{"name":"@elastic/otel-react-native"},"deployment.environment.name":"local","resource":{"attributes":{"service.namespace":"weather-demo"}}}'
     fi
     ;;
   *) echo '{"status":"green"}' ;;
@@ -196,6 +199,7 @@ run_crash_scenario() {
   local name="$1"
   local app_exits="$2"
   local crash_exported="$3"
+  local omit_namespace="${4:-0}"
   rm -f "$crash_state"/*
   : >"$command_log"
   PATH="$crash_bin:$PATH" \
@@ -203,6 +207,7 @@ run_crash_scenario() {
     CRASH_STATE="$crash_state" \
     FAKE_APP_EXITS="$app_exits" \
     FAKE_CRASH_EXPORTED="$crash_exported" \
+    FAKE_OMIT_NAMESPACE="$omit_namespace" \
     E2E_MARKER_DIR="$TEMP_DIR/markers" \
     E2E_ARTIFACT_DIR="$TEMP_DIR/$name" \
     "$crash_repository/scripts/e2e/verify.sh" android http://localhost:9200 \
@@ -232,5 +237,12 @@ if run_crash_scenario crash-no-record 1 0; then
 fi
 grep -F "no app.crash record arrived within 180s of the relaunch" \
   "$TEMP_DIR/crash-no-record/verifier-output.txt" >/dev/null
+
+if run_crash_scenario missing-namespace 1 1 1; then
+  echo "Expected startup telemetry without service.namespace to fail." >&2
+  exit 1
+fi
+grep -F "Startup service.namespace mismatch: expected 'weather-demo', got ''." \
+  "$TEMP_DIR/missing-namespace/verifier-output.txt" >/dev/null
 
 echo "Verifier safety, platform launcher, and crash scenario probes passed."
