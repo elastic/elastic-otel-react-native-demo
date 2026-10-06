@@ -10,18 +10,16 @@ buildscript {
     repositories {
         google()
         mavenCentral()
+        gradlePluginPortal()
     }
     dependencies {
         classpath("com.android.tools.build:gradle")
+        classpath("co.elastic.otel.android:agent-plugin:${findProject(':elastic_otel-react-native').properties['edotAndroidVersion']}")
+        classpath("co.elastic.otel.android.instrumentation:okhttp-plugin:${findProject(':elastic_otel-react-native').properties['edotAndroidVersion']}")
+        classpath("co.elastic.otel.android.instrumentation:crash-plugin:${findProject(':elastic_otel-react-native').properties['edotAndroidVersion']}")
         classpath("com.facebook.react:react-native-gradle-plugin")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
     }
-}
-
-plugins {
-    id("co.elastic.otel.android.agent") version "1.10.0" apply false
-    id("co.elastic.otel.android.instrumentation.okhttp") version "1.10.0" apply false
-    id("co.elastic.otel.android.instrumentation.crash") version "1.10.0" apply false
 }
 
 apply plugin: "com.facebook.react.rootproject"
