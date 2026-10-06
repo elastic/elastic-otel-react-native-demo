@@ -68,13 +68,15 @@ and W3C propagation. There is no manual request span.
 Native initialization in
 [`MainApplication.kt`](android/app/src/main/java/com/reactnativedemoapp/MainApplication.kt)
 and [`AppDelegate.swift`](ios/ReactNativeDemoApp/AppDelegate.swift) runs before
-React Native loads. Android reads
-[`elastic-otel-config.json`](elastic-otel-config.json), which the package's
-Gradle script copies into the app assets at build time. It configures
-OTLP/HTTP to `http://localhost:4318`, service name
-`weather-demo-react-native`, `deployment.environment.name=local`,
-`service.namespace=weather-demo`, and full session sampling. iOS configures
-OTLP/HTTP, the same service name, and full session sampling in code. On both
+React Native loads. Both platforms read the one
+[`elastic-otel-config.json`](elastic-otel-config.json) at the project root,
+with `ElasticOtelReactNative.initialize(this)` on Android and
+`try ElasticOtelReactNative.initialize()` on iOS. The package's Gradle script
+copies the file into the Android app assets at build time, and the Xcode
+project references it in the iOS app target's Copy Bundle Resources phase,
+which `setup-ios` added. It configures OTLP/HTTP to `http://localhost:4318`,
+service name `weather-demo-react-native`, `deployment.environment.name=local`,
+`service.namespace=weather-demo`, and full session sampling. On both
 platforms, spans and logs created through the package use the instrumentation
 scope `@elastic/otel-react-native`. Remote management is not configured.
 
@@ -239,10 +241,10 @@ to the development Mac from the iOS Simulator. Android network security and iOS 
 allow only the local clear-text development paths needed by this demo.
 
 A physical device cannot use these simulator-specific assumptions. Replace the
-OTLP URL in `elastic-otel-config.json` (Android) or `AppDelegate.swift` (iOS)
-and the backend URL with the development machine's LAN address, update the
-platform network policy where necessary, and ensure ports `4318` and `8080` are
-reachable. Do not carry this local clear-text configuration into production.
+OTLP URL in `elastic-otel-config.json` (both platforms) and the backend URL
+with the development machine's LAN address, update the platform network policy
+where necessary, and ensure ports `4318` and `8080` are reachable. Do not carry
+this local clear-text configuration into production.
 
 ## Limitations
 

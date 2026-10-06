@@ -267,10 +267,8 @@ startup_scope="@elastic/otel-react-native"
 assert_equal "Startup root instrumentation scope" "$startup_scope" "$root_scope"
 assert_equal "Startup child instrumentation scope" "$startup_scope" "$child_scope"
 assert_equal "Startup log instrumentation scope" "$startup_scope" "$log_scope"
-if [[ "$PLATFORM" == "android" ]]; then
-  assert_equal "Startup deployment.environment.name" "local" "$root_environment"
-  assert_equal "Startup service.namespace" "weather-demo" "$root_namespace"
-fi
+assert_equal "Startup deployment.environment.name" "local" "$root_environment"
+assert_equal "Startup service.namespace" "weather-demo" "$root_namespace"
 
 if [[ -n "$error_trace" || -n "$error_span" ]]; then
   echo "The forecast ERROR log unexpectedly contains span correlation." >&2
