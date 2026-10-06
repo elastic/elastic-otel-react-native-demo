@@ -150,8 +150,9 @@ npm install ../elastic-otel-react-native
 
 ### 4. Run Android
 
-Verify the deterministic Android setup, build the release APK, install it, and
-launch it:
+Check the Android setup, build the release APK, install it, and launch it.
+`android:check` runs the package's `setup-android` command and fails if it
+changes anything under `android/`:
 
 ```sh
 npm run android:check
