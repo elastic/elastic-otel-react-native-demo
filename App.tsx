@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { DemoButton } from './DemoButton';
 
 type WeatherCity = {
   name: string;
@@ -205,14 +206,14 @@ function ForecastScreen({
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" />
       <View style={styles.forecastHeader}>
-        <Pressable
+        <DemoButton
           accessibilityLabel="Return to city picker"
           accessibilityRole="button"
           onPress={onBack}
           testID="forecast-back-button"
         >
           <Text style={styles.backButton}>Back</Text>
-        </Pressable>
+        </DemoButton>
         <Text style={styles.headerTitle}>{city.name}</Text>
       </View>
       <View style={styles.forecastBody}>

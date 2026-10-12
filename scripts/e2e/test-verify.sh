@@ -152,6 +152,8 @@ case "$url" in
       fi
     elif [[ "$body" == *"Forecast request failed"* ]]; then
       hit '{"service.name":"weather-demo-react-native","log.level":"ERROR"}'
+    elif [[ "$body" == *forecast-back-button* ]]; then
+      hit '{"service.name":"weather-demo-react-native","app.widget.id":"forecast-back-button","app.widget.name":"Back","scope":{"name":"@elastic/otel-react-native.interactions"},"attributes":{"otel.event.name":"app.widget.click"}}'
     elif [[ "$body" == *app.widget.id* ]]; then
       hit '{"service.name":"weather-demo-react-native","app.widget.id":"fetch-forecast-button","app.widget.name":"Fetch forecast","scope":{"name":"@elastic/otel-react-native.interactions"},"attributes":{"otel.event.name":"app.widget.click"}}'
     elif [[ "${FAKE_OMIT_NAMESPACE:-0}" == "1" ]]; then

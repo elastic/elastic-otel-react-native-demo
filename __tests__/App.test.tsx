@@ -3,6 +3,7 @@ import { Text } from 'react-native';
 import ReactTestRenderer, { ReactTestRendererJSON } from 'react-test-renderer';
 import { emitLog, endSpan, startSpan } from '@elastic/otel-react-native';
 import App, { forecastUrl } from '../App';
+import { DemoButton } from '../DemoButton';
 
 const mockRecordWidgetClick = jest.fn(
   async (_options: {
@@ -17,16 +18,33 @@ jest.mock(
   () => require('react-native-safe-area-context/jest/mock').default,
 );
 
+// Mirrors the package's tap contract: the first candidate that is a
+// non-empty string wins, and the widget id falls back to the component name.
+function mockFirstValue(candidates: unknown[]): string | undefined {
+  return candidates.find(
+    (candidate): candidate is string =>
+      typeof candidate === 'string' && candidate.trim() !== '',
+  );
+}
+
 jest.mock('@elastic/otel-react-native', () => ({
+  __widgetContent: (...parts: unknown[]) =>
+    parts
+      .filter(part => typeof part === 'string' || typeof part === 'number')
+      .map(part => String(part).trim())
+      .filter(Boolean)
+      .join(' '),
   __wrapPressHandler: (
     handler: (...args: unknown[]) => unknown,
-    widgetId: string,
-    widgetName: string | null,
+    componentName: string,
+    widgetIdCandidates: unknown[],
+    widgetNameCandidates: unknown[],
   ) =>
     function (this: unknown, ...args: unknown[]) {
+      const widgetName = mockFirstValue(widgetNameCandidates);
       mockRecordWidgetClick({
-        widgetId,
-        ...(widgetName === null ? {} : { widgetName }),
+        widgetId: mockFirstValue(widgetIdCandidates) ?? componentName,
+        ...(widgetName === undefined ? {} : { widgetName }),
         timestamp: Date.now(),
       }).catch(() => {});
       return handler.apply(this, args);
@@ -120,6 +138,39 @@ test('fetches and renders a forecast from the shared backend', async () => {
       'Mild',
       'Weather data by Open-Meteo.com',
     ]),
+  );
+});
+
+test('records one tap event for the demo-owned back button', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  await ReactTestRenderer.act(async () => {
+    renderer!.root
+      .findByProps({ testID: 'fetch-forecast-button' })
+      .props.onPress();
+  });
+  mockRecordWidgetClick.mockClear();
+
+  // The pressable that DemoButton renders receives the wrapped handler.
+  const backButton = renderer!.root
+    .findAllByProps({ testID: 'forecast-back-button' })
+    .find(node => typeof node.type !== 'string' && node.type !== DemoButton);
+  await ReactTestRenderer.act(async () => {
+    backButton!.props.onPress();
+  });
+
+  expect(mockRecordWidgetClick).toHaveBeenCalledTimes(1);
+  expect(mockRecordWidgetClick).toHaveBeenCalledWith(
+    expect.objectContaining({
+      widgetId: 'forecast-back-button',
+      widgetName: 'Back',
+    }),
+  );
+  expect(renderedText(renderer)).toEqual(
+    expect.arrayContaining(['Weather demo', 'Fetch forecast']),
   );
 });
 

@@ -3,7 +3,11 @@ module.exports = {
   plugins: [
     [
       '@elastic/otel-react-native/babel-plugin',
-      { includeAccessibilityLabel: true },
+      {
+        interactions: {
+          components: [{ name: 'DemoButton', instrumentations: { click: {} } }],
+        },
+      },
     ],
   ],
 };

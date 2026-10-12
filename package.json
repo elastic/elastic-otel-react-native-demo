@@ -16,7 +16,7 @@
     "android:check": "npx --no-install elastic-otel-react-native setup-android && git diff --exit-code -- android",
     "check": "./checks.sh",
     "e2e:test": "./scripts/e2e/test-verify.sh",
-    "format:check": "prettier --check App.tsx __tests__/App.test.tsx README.md package.json app.json .eslintrc.js jest.config.js metro.config.js \"scripts/**/*.md\" \"scripts/**/*.mjs\"",
+    "format:check": "prettier --check App.tsx DemoButton.tsx __tests__/App.test.tsx README.md package.json app.json .eslintrc.js jest.config.js metro.config.js \"scripts/**/*.md\" \"scripts/**/*.mjs\"",
     "ios": "npm run ios:run",
     "ios:autolink:check": "node scripts/check-ios-autolinking.mjs",
     "ios:build": "mkdir -p build/tmp && GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.bareRepository GIT_CONFIG_VALUE_0=all TMPDIR=\"$PWD/build/tmp\" xcodebuild -workspace ios/ReactNativeDemoApp.xcworkspace -scheme ReactNativeDemoApp -configuration Release -destination \"generic/platform=iOS Simulator\" -derivedDataPath ios/build CODE_SIGNING_ALLOWED=NO",
