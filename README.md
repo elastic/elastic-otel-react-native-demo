@@ -42,7 +42,7 @@ reference documentation.
 - A `During app creation` log correlated with the child span.
 - An independent ERROR log when the backend rejects New York.
 - A non-blocking `app.widget.click` EventRecord when you press **Fetch
-  forecast**.
+  forecast** or **Back**.
 - An automatically instrumented app HTTP span that propagates W3C trace context
   to `weather-demo-backend`.
 - Native automatic instrumentation owned by EDOT Android or EDOT iOS.
@@ -80,9 +80,11 @@ service name `weather-demo-react-native`, `deployment.environment.name=local`,
 platforms, spans and logs created through the package use the instrumentation
 scope `@elastic/otel-react-native`. Remote management is not configured.
 
-The package Babel plugin instruments the static
-`fetch-forecast-button` `Pressable` at build time. The app contains no manual
-tap telemetry. `app.widget.click`, `app.widget.id`, and `app.widget.name` are
+The package Babel plugin instruments taps at build time: the
+`fetch-forecast-button` `Pressable` through the plugin's defaults, and the
+forecast screen's `forecast-back-button` through `DemoButton`, a demo-owned
+component that `babel.config.js` lists. The app contains no manual tap
+telemetry. `app.widget.click`, `app.widget.id`, and `app.widget.name` are
 Development OpenTelemetry semantic conventions and can change before
 stabilization.
 
@@ -217,15 +219,16 @@ by start-local. Look for:
 - `Initialize React Native UI`
 - `During app creation`
 - `otel.event.name=app.widget.click` or the platform-compatible event-name
-  representation, with `app.widget.id=fetch-forecast-button`
+  representation, with `app.widget.id=fetch-forecast-button` and
+  `app.widget.id=forecast-back-button`
 
 For repeatable document-level checks on either platform, follow
 [`scripts/e2e/README.md`](scripts/e2e/README.md). The shared verifier installs
 and launches the selected release app, then checks parent, trace, and log
 correlation IDs, the independent ERROR log, the automatic widget-click
-EventRecord, and the app/backend distributed trace. On Android it then asks you
-to press **Crash** and checks the `app.crash` record exported on the next
-launch.
+EventRecords for **Fetch forecast** and **Back**, and the app/backend
+distributed trace. On Android it then asks you to press **Crash** and checks
+the `app.crash` record exported on the next launch.
 
 For more information, see the Android and iOS **Visualize telemetry** guidance:
 
@@ -257,8 +260,8 @@ this local clear-text configuration into production.
 - Android requires API 26 or later.
 - The checked-in iOS workflow targets a simulator. Physical-device execution
   needs signing and LAN endpoint configuration.
-- Automatic tap events cover only supported standard React Native `Button` and
-  `Pressable` handlers with static `testID` values.
+- Automatic tap events cover React Native's buttons, pressables, and
+  touchables, and `DemoButton`, which `babel.config.js` lists.
 
 ## License
 

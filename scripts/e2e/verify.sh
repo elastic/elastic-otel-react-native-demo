@@ -214,7 +214,8 @@ EOF
     "berlin-complete"
 
   cat <<'EOF'
-3. Return to the city picker, select New York, and press "Fetch forecast".
+3. Press "Back" to return to the city picker, select New York, and press
+   "Fetch forecast".
 4. Wait until the rejected-request error is visible.
 EOF
   wait_for_operator \
@@ -226,6 +227,7 @@ startup_root_query='{"size":1,"query":{"bool":{"filter":[{"term":{"service.name"
 error_log_query='{"size":1,"query":{"bool":{"filter":[{"term":{"service.name":{"value":"weather-demo-react-native"}}},{"match_phrase":{"body.text":"Forecast request failed:"}}]}}}'
 backend_query='{"size":1,"query":{"bool":{"filter":[{"term":{"service.name":{"value":"weather-demo-backend"}}},{"term":{"name":{"value":"GET /v1/forecast"}}},{"term":{"http.response.status_code":{"value":200}}},{"term":{"url.query":{"value":"city=Berlin"}}}]}}}'
 widget_click_query='{"size":1,"query":{"bool":{"filter":[{"term":{"service.name":{"value":"weather-demo-react-native"}}},{"term":{"app.widget.id":{"value":"fetch-forecast-button"}}},{"term":{"scope.name":{"value":"@elastic/otel-react-native.interactions"}}}],"should":[{"term":{"otel.event.name":{"value":"app.widget.click"}}},{"term":{"attributes.otel.event.name":{"value":"app.widget.click"}}},{"term":{"event.name":{"value":"app.widget.click"}}},{"term":{"attributes.event.name":{"value":"app.widget.click"}}}],"minimum_should_match":1}}}'
+widget_click_back_query='{"size":1,"query":{"bool":{"filter":[{"term":{"service.name":{"value":"weather-demo-react-native"}}},{"term":{"app.widget.id":{"value":"forecast-back-button"}}},{"term":{"scope.name":{"value":"@elastic/otel-react-native.interactions"}}}],"should":[{"term":{"otel.event.name":{"value":"app.widget.click"}}},{"term":{"attributes.otel.event.name":{"value":"app.widget.click"}}},{"term":{"event.name":{"value":"app.widget.click"}}},{"term":{"attributes.event.name":{"value":"app.widget.click"}}}],"minimum_should_match":1}}}'
 
 wait_for_hit "traces-*" "startup root span" "$startup_root_query" "$ARTIFACT_DIR/startup-root.json"
 root_trace=$(field "$ARTIFACT_DIR/startup-root.json" '._source."trace.id" // ._source.trace_id')
@@ -236,6 +238,7 @@ startup_log_query='{"size":1,"query":{"bool":{"filter":[{"term":{"service.name":
 wait_for_hit "logs-*" "correlated startup log" "$startup_log_query" "$ARTIFACT_DIR/startup-log.json"
 wait_for_hit "logs-*" "independent forecast ERROR log" "$error_log_query" "$ARTIFACT_DIR/error-log.json"
 wait_for_hit "logs-*" "automatic forecast widget click" "$widget_click_query" "$ARTIFACT_DIR/widget-click.json"
+wait_for_hit "logs-*" "automatic back-button widget click" "$widget_click_back_query" "$ARTIFACT_DIR/widget-click-back.json"
 wait_for_hit "traces-*" "backend forecast span" "$backend_query" "$ARTIFACT_DIR/backend-span.json"
 
 root_span=$(field "$ARTIFACT_DIR/startup-root.json" '._source."span.id" // ._source.span_id')
@@ -257,6 +260,12 @@ widget_scope=$(field "$ARTIFACT_DIR/widget-click.json" '._source.scope.name')
 widget_event_name=$(field "$ARTIFACT_DIR/widget-click.json" '._source.attributes."otel.event.name" // ._source.attributes."event.name" // ._source."otel.event.name" // ._source."event.name"')
 widget_trace=$(field "$ARTIFACT_DIR/widget-click.json" '._source."trace.id" // ._source.trace_id')
 widget_span=$(field "$ARTIFACT_DIR/widget-click.json" '._source."span.id" // ._source.span_id')
+back_widget_id=$(field "$ARTIFACT_DIR/widget-click-back.json" '._source."app.widget.id" // ._source.attributes."app.widget.id"')
+back_widget_name=$(field "$ARTIFACT_DIR/widget-click-back.json" '._source."app.widget.name" // ._source.attributes."app.widget.name"')
+back_widget_scope=$(field "$ARTIFACT_DIR/widget-click-back.json" '._source.scope.name')
+back_widget_event_name=$(field "$ARTIFACT_DIR/widget-click-back.json" '._source.attributes."otel.event.name" // ._source.attributes."event.name" // ._source."otel.event.name" // ._source."event.name"')
+back_widget_trace=$(field "$ARTIFACT_DIR/widget-click-back.json" '._source."trace.id" // ._source.trace_id')
+back_widget_span=$(field "$ARTIFACT_DIR/widget-click-back.json" '._source."span.id" // ._source.span_id')
 backend_trace=$(field "$ARTIFACT_DIR/backend-span.json" '._source."trace.id" // ._source.trace_id')
 
 assert_equal "Startup child trace.id" "$root_trace" "$child_trace"
@@ -283,6 +292,14 @@ if [[ -n "$widget_trace" || -n "$widget_span" ]]; then
   echo "The widget click event unexpectedly contains span correlation." >&2
   exit 1
 fi
+assert_equal "Back widget event name" "app.widget.click" "$back_widget_event_name"
+assert_equal "Back widget ID" "forecast-back-button" "$back_widget_id"
+assert_equal "Back widget name" "Back" "$back_widget_name"
+assert_equal "Back widget instrumentation scope" "@elastic/otel-react-native.interactions" "$back_widget_scope"
+if [[ -n "$back_widget_trace" || -n "$back_widget_span" ]]; then
+  echo "The back-button widget click event unexpectedly contains span correlation." >&2
+  exit 1
+fi
 
 app_http_query='{"size":10,"query":{"bool":{"filter":[{"term":{"service.name":{"value":"weather-demo-react-native"}}},{"term":{"trace.id":{"value":"'"$backend_trace"'"}}}]}}}'
 wait_for_hit "traces-*" "app HTTP client span in the backend trace" "$app_http_query" "$ARTIFACT_DIR/app-http-span.json"
@@ -291,7 +308,7 @@ app_span_kind=$(field "$ARTIFACT_DIR/app-http-span.json" '._source."span.kind" /
 assert_equal "Distributed trace.id" "$backend_trace" "$app_trace"
 assert_equal "App HTTP span kind" "CLIENT" "$(tr '[:lower:]' '[:upper:]' <<<"$app_span_kind")"
 
-summary_items="startup-root startup-child startup-log error-log widget-click app-http-span backend-span"
+summary_items="startup-root startup-child startup-log error-log widget-click widget-click-back app-http-span backend-span"
 if [[ "$PLATFORM" == "android" ]]; then
   crash_message="Intentional crash from the EDOT React Native demo"
   crash_query='{"size":1,"query":{"bool":{"filter":[{"term":{"service.name":{"value":"weather-demo-react-native"}}},{"exists":{"field":"exception.type"}},{"exists":{"field":"session.id"}},{"wildcard":{"exception.stacktrace":{"value":"*'"$crash_message"'*"}}}],"should":[{"term":{"event_name":{"value":"app.crash"}}},{"term":{"otel.event.name":{"value":"app.crash"}}}],"minimum_should_match":1}}}'

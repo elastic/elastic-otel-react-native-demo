@@ -57,8 +57,8 @@ checks the startup root/child relationship, the startup instrumentation scope
 `@elastic/otel-react-native` and the `deployment.environment.name=local` and
 `service.namespace=weather-demo` resource attributes from
 `elastic-otel-config.json` on both platforms, the correlated startup log, independent
-ERROR log, automatic `fetch-forecast-button` `app.widget.click` EventRecord,
-backend span, auto-instrumented app HTTP span sharing the backend's
+ERROR log, automatic `fetch-forecast-button` and `forecast-back-button`
+`app.widget.click` EventRecords, backend span, auto-instrumented app HTTP span sharing the backend's
 `trace.id`, and, on Android, the `app.crash` record with `exception.type`,
 `session.id`, and an `exception.stacktrace` containing the intentional crash
 message. It accepts the compatible Android and iOS event-name
