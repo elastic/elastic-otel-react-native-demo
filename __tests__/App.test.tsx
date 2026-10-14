@@ -195,7 +195,7 @@ test('updates the UI when automatic tap telemetry rejects', async () => {
 test('emits an independent error log for a rejected forecast', async () => {
   globalThis.fetch = jest.fn(async () => ({
     ok: false,
-    status: 400,
+    status: 500,
     json: async () => ({}),
   })) as unknown as typeof fetch;
 
@@ -221,7 +221,7 @@ test('emits an independent error log for a rejected forecast', async () => {
     'http://localhost:8080/v1/forecast?city=New%20York',
   );
   expect(emitLog).toHaveBeenCalledWith(
-    'Forecast request failed: Backend returned HTTP 400',
+    'Forecast request failed: Backend returned HTTP 500',
     'error',
   );
   expect(renderedText(renderer)).toEqual(
@@ -232,7 +232,7 @@ test('emits an independent error log for a rejected forecast', async () => {
 test('renders a rejected forecast when error logging also rejects', async () => {
   globalThis.fetch = jest.fn(async () => ({
     ok: false,
-    status: 400,
+    status: 500,
     json: async () => ({}),
   })) as unknown as typeof fetch;
   const loggingError = new Error('logging unavailable');
