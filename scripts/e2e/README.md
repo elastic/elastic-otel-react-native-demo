@@ -62,7 +62,10 @@ ERROR log, automatic `fetch-forecast-button` and `forecast-back-button`
 `trace.id`, and, on Android, the `app.crash` record with `exception.type`,
 `session.id`, and an `exception.stacktrace` containing the intentional crash
 message. It accepts the compatible Android and iOS event-name
-representations instead of requiring one Elasticsearch field layout.
+representations instead of requiring one Elasticsearch field layout. For the
+ERROR log, it matches only the `Forecast request failed:` prefix and does not
+check the backend's HTTP status, so a backend status change needs only the unit
+tests in `__tests__/App.test.tsx` updated.
 
 Matching documents are written to `build/e2e/`. Every failure also captures
 verifier output, cluster health, backend logs, container state, and either
