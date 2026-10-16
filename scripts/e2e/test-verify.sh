@@ -210,7 +210,9 @@ case "$*" in
     ;;
   "simctl spawn SIM-123 launchctl list")
     printf '4000\t0\tUIKitApplication:com.apple.Preferences[1a2b][rb-legacy]\n'
-    if [[ "${FAKE_APP_EXITS:-0}" != "1" ]]; then
+    if [[ "${FAKE_APP_EXITS:-0}" == "1" ]]; then
+      printf -- '-\t0\tUIKitApplication:com.reactnativedemoapp[3c4d][rb-legacy]\n'
+    else
       printf '4321\t0\tUIKitApplication:com.reactnativedemoapp[3c4d][rb-legacy]\n'
     fi
     ;;

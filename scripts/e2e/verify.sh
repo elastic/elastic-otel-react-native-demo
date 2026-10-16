@@ -165,13 +165,14 @@ assert_equal() {
   fi
 }
 
-# The crash step below is shared; these are its only platform-specific facts.
+# Platform-specific commands used by the crash step.
 app_running() {
   if [[ "$PLATFORM" == "android" ]]; then
     adb shell pidof com.reactnativedemoapp 2>/dev/null | tr -d '\r' || true
   else
+    # launchctl lists a loaded job that is not running with '-' as its PID.
     xcrun simctl spawn "$DEVICE_ID" launchctl list 2>/dev/null |
-      grep -F 'UIKitApplication:com.reactnativedemoapp[' || true
+      grep -E '^[0-9]+[[:space:]]+[^[:space:]]+[[:space:]]+UIKitApplication:com\.reactnativedemoapp\[' || true
   fi
 }
 

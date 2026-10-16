@@ -35,10 +35,10 @@ successfully and New York unsuccessfully. The UI actions remain operator-driven
 so both platforms exercise the same visible app behavior.
 
 On both platforms, the verifier then asks you to press **Crash**. It waits
-until the app process exits (`adb shell pidof com.reactnativedemoapp` returns
-nothing on Android; `xcrun simctl spawn <udid> launchctl list` no longer lists
-`UIKitApplication:com.reactnativedemoapp` on iOS), confirms that no crash record
-was exported before the relaunch, relaunches the app with `launch-app.sh`, and
+until the app process exits: on Android, `adb shell pidof com.reactnativedemoapp`
+returns nothing; on iOS, `xcrun simctl spawn <udid> launchctl list` shows no
+running `UIKitApplication:com.reactnativedemoapp` job. It then confirms that no
+crash record was exported before the relaunch, relaunches the app with `launch-app.sh`, and
 waits for the `app.crash` record that the native EDOT SDK exports on the next
 launch. It fails with a message that says whether the process did not exit or
 the crash record did not arrive.
