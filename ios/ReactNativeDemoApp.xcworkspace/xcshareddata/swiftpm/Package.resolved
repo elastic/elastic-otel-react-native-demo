@@ -6,8 +6,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/elastic/apm-agent-ios.git",
       "state" : {
-        "revision" : "c29d26b8418609f83b1efab1265684c3ac053ee1",
-        "version" : "2.1.0"
+        "revision" : "2825eb91823028288ea2b9c6607ce8278b16c881",
+        "version" : "2.2.0"
       }
     },
     {
