@@ -281,7 +281,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.reactnativedemoapp;
+				PRODUCT_BUNDLE_IDENTIFIER = co.elastic.edot.reactnative.demo;
 				PRODUCT_NAME = ReactNativeDemoApp;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -310,7 +310,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.reactnativedemoapp;
+				PRODUCT_BUNDLE_IDENTIFIER = co.elastic.edot.reactnative.demo;
 				PRODUCT_NAME = ReactNativeDemoApp;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_VERSION = 5.0;
