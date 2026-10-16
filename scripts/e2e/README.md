@@ -34,12 +34,14 @@ OTLP port with `adb reverse tcp:4318 tcp:4318`, and tells you when to fetch Berl
 successfully and New York unsuccessfully. The UI actions remain operator-driven
 so both platforms exercise the same visible app behavior.
 
-On Android, the verifier then asks you to press **Crash**. It waits until
-`adb shell pidof com.reactnativedemoapp` returns nothing, confirms that no crash
-record was exported before the relaunch, relaunches the app with
-`launch-app.sh`, and waits for the `app.crash` record that EDOT Android exports
-on the next launch. It fails with a message that says whether the process did
-not exit or the crash record did not arrive.
+On both platforms, the verifier then asks you to press **Crash**. It waits
+until the app process exits (`adb shell pidof com.reactnativedemoapp` returns
+nothing on Android; `xcrun simctl spawn <udid> launchctl list` no longer lists
+`UIKitApplication:com.reactnativedemoapp` on iOS), confirms that no crash record
+was exported before the relaunch, relaunches the app with `launch-app.sh`, and
+waits for the `app.crash` record that the native EDOT SDK exports on the next
+launch. It fails with a message that says whether the process did not exit or
+the crash record did not arrive.
 
 For a repeated run against local loopback Elasticsearch, set
 `E2E_LOCAL_RERUN=1`. This mode deletes only documents whose exact service name
@@ -59,7 +61,7 @@ checks the startup root/child relationship, the startup instrumentation scope
 `elastic-otel-config.json` on both platforms, the correlated startup log, independent
 ERROR log, automatic `fetch-forecast-button` and `forecast-back-button`
 `app.widget.click` EventRecords, backend span, auto-instrumented app HTTP span sharing the backend's
-`trace.id`, and, on Android, the `app.crash` record with `exception.type`,
+`trace.id`, and the `app.crash` record with `exception.type`,
 `session.id`, and an `exception.stacktrace` containing the intentional crash
 message. It accepts the compatible Android and iOS event-name
 representations instead of requiring one Elasticsearch field layout. For the
@@ -70,5 +72,5 @@ needs only the unit tests in `__tests__/App.test.tsx` updated.
 Matching documents are written to `build/e2e/`. Every failure also captures
 verifier output, cluster health, backend logs, container state, and either
 Android logcat or iOS Simulator logs. Run `npm run e2e:test` to exercise the URL
-safety guard, both launch paths, and the Android crash scenario with focused
-command mocks.
+safety guard, both launch paths, and the crash scenario on both platforms with
+focused command mocks.

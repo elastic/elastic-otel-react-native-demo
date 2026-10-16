@@ -146,7 +146,14 @@ case "$url" in
   */_search)
     if [[ "$body" == *app.crash* ]]; then
       if [[ "${FAKE_CRASH_EXPORTED:-0}" == "1" && -f "$CRASH_STATE/relaunched" ]]; then
-        hit '{"@timestamp":"2026-09-21T14:13:25.000Z","service.name":"weather-demo-react-native","attributes":{"exception.type":"com.facebook.react.common.JavascriptException","exception.stacktrace":"com.facebook.react.common.JavascriptException: Error: Intentional crash from the EDOT React Native demo","session.id":"fake-session"}}'
+        if [[ "$FAKE_PLATFORM" == "ios" ]]; then
+          hit "$(cat <<'JSON'
+{"@timestamp":"2026-09-21T14:13:25.000Z","service.name":"weather-demo-react-native","attributes":{"exception.type":"SIGABRT","exception.stacktrace":"Incident Identifier: FAKE\nHardware Model: arm64\nProcess: ReactNativeDemoA [4321]\nException Type: SIGABRT\n\nApplication Specific Information:\n*** Terminating app due to uncaught exception 'RCTFatalException: Unhandled JS Exception: Error: Intentional crash from the EDOT React Native demo', reason: 'Unhandled JS Exception: Error: Intentional crash from the EDOT React Native demo, stack:\ncrashApp@44536:19","session.id":"fake-session"}}
+JSON
+)"
+        else
+          hit '{"@timestamp":"2026-09-21T14:13:25.000Z","service.name":"weather-demo-react-native","attributes":{"exception.type":"com.facebook.react.common.JavascriptException","exception.stacktrace":"com.facebook.react.common.JavascriptException: Error: Intentional crash from the EDOT React Native demo","session.id":"fake-session"}}'
+        fi
       else
         echo '{"hits":{"total":{"value":0},"hits":[]}}'
       fi
@@ -186,65 +193,105 @@ case "$*" in
     ;;
 esac
 EOF
+cat >"$crash_bin/xcrun" <<'EOF'
+#!/usr/bin/env bash
+printf 'xcrun %s\n' "$*" >>"$COMMAND_LOG"
+case "$*" in
+  "simctl list devices booted -j")
+    printf '{"devices":{"com.apple.CoreSimulator.SimRuntime.iOS-27-0":[{"state":"Booted","udid":"SIM-123"}]}}\n'
+    ;;
+  "simctl launch"*)
+    launches=$(( $(cat "$CRASH_STATE/launches" 2>/dev/null || echo 0) + 1 ))
+    echo "$launches" >"$CRASH_STATE/launches"
+    if (( launches >= 2 )); then
+      touch "$CRASH_STATE/relaunched"
+    fi
+    echo "com.reactnativedemoapp: 4321"
+    ;;
+  "simctl spawn SIM-123 launchctl list")
+    printf '4000\t0\tUIKitApplication:com.apple.Preferences[1a2b][rb-legacy]\n'
+    if [[ "${FAKE_APP_EXITS:-0}" != "1" ]]; then
+      printf '4321\t0\tUIKitApplication:com.reactnativedemoapp[3c4d][rb-legacy]\n'
+    fi
+    ;;
+esac
+EOF
+cat >"$crash_bin/date" <<'EOF'
+#!/usr/bin/env bash
+echo "1790000000"
+EOF
 printf '#!/usr/bin/env bash\n' >"$crash_bin/sleep"
 cp "$fake_bin/docker" "$crash_bin/docker"
-chmod +x "$crash_bin/curl" "$crash_bin/adb" "$crash_bin/sleep" "$crash_bin/docker"
-# The verifier relaunches through launch-app.sh, which resolves the release APK
+chmod +x "$crash_bin/curl" "$crash_bin/adb" "$crash_bin/xcrun" "$crash_bin/date" \
+  "$crash_bin/sleep" "$crash_bin/docker"
+# The verifier relaunches through launch-app.sh, which resolves the release app
 # relative to its own checkout, so run a copy of the scripts in a scratch layout.
 crash_repository="$TEMP_DIR/crash-repository"
 mkdir -p "$crash_repository/scripts/e2e" \
-  "$crash_repository/android/app/build/outputs/apk/release"
+  "$crash_repository/android/app/build/outputs/apk/release" \
+  "$crash_repository/ios/build/Build/Products/Release-iphonesimulator/ReactNativeDemoApp.app"
 cp "$VERIFY" "$LAUNCH" "$VALIDATE" "$crash_repository/scripts/e2e/"
 touch "$crash_repository/android/app/build/outputs/apk/release/app-release.apk"
 
 run_crash_scenario() {
-  local name="$1"
-  local app_exits="$2"
-  local crash_exported="$3"
-  local omit_namespace="${4:-0}"
+  local platform="$1"
+  local name="$2"
+  local app_exits="$3"
+  local crash_exported="$4"
+  local omit_namespace="${5:-0}"
   rm -f "$crash_state"/*
   : >"$command_log"
   PATH="$crash_bin:$PATH" \
     COMMAND_LOG="$command_log" \
     CRASH_STATE="$crash_state" \
+    FAKE_PLATFORM="$platform" \
     FAKE_APP_EXITS="$app_exits" \
     FAKE_CRASH_EXPORTED="$crash_exported" \
     FAKE_OMIT_NAMESPACE="$omit_namespace" \
     E2E_MARKER_DIR="$TEMP_DIR/markers" \
-    E2E_ARTIFACT_DIR="$TEMP_DIR/$name" \
-    "$crash_repository/scripts/e2e/verify.sh" android http://localhost:9200 \
+    E2E_ARTIFACT_DIR="$TEMP_DIR/$platform-$name" \
+    "$crash_repository/scripts/e2e/verify.sh" "$platform" http://localhost:9200 \
     "not-a-real-key" >/dev/null 2>&1
 }
 
-run_crash_scenario crash-success 1 1
-grep -F "Intentional crash from the EDOT React Native demo" \
-  "$TEMP_DIR/crash-success/crash.json" >/dev/null
-grep -F "Local React Native android demo E2E verification passed." \
-  "$TEMP_DIR/crash-success/verifier-output.txt" >/dev/null
-if [[ $(grep -c "adb shell am start -n com.reactnativedemoapp/.MainActivity" "$command_log") -ne 2 ]]; then
-  echo "Expected the crash scenario to relaunch the app once." >&2
-  exit 1
-fi
+for platform in android ios; do
+  case "$platform" in
+    android) launch_command="adb shell am start -n com.reactnativedemoapp/.MainActivity" ;;
+    ios) launch_command="xcrun simctl launch --terminate-running-process SIM-123 com.reactnativedemoapp" ;;
+  esac
 
-if run_crash_scenario crash-no-exit 0 1; then
-  echo "Expected a crash scenario whose process never exits to fail." >&2
-  exit 1
-fi
-grep -F "did not exit within 180s of the Crash prompt" \
-  "$TEMP_DIR/crash-no-exit/verifier-output.txt" >/dev/null
+  run_crash_scenario "$platform" crash-success 1 1
+  grep -F "Intentional crash from the EDOT React Native demo" \
+    "$TEMP_DIR/$platform-crash-success/crash.json" >/dev/null
+  grep -F "Local React Native $platform demo E2E verification passed." \
+    "$TEMP_DIR/$platform-crash-success/verifier-output.txt" >/dev/null
+  if [[ $(grep -c -F "$launch_command" "$command_log") -ne 2 ]]; then
+    echo "Expected the $platform crash scenario to relaunch the app once." >&2
+    exit 1
+  fi
 
-if run_crash_scenario crash-no-record 1 0; then
-  echo "Expected a crash scenario without an exported record to fail." >&2
-  exit 1
-fi
-grep -F "no app.crash record arrived within 180s of the relaunch" \
-  "$TEMP_DIR/crash-no-record/verifier-output.txt" >/dev/null
+  if run_crash_scenario "$platform" crash-no-exit 0 1; then
+    echo "Expected a $platform crash scenario whose process never exits to fail." >&2
+    exit 1
+  fi
+  grep -F "did not exit within 180s of the Crash prompt" \
+    "$TEMP_DIR/$platform-crash-no-exit/verifier-output.txt" >/dev/null
 
-if run_crash_scenario missing-namespace 1 1 1; then
-  echo "Expected startup telemetry without service.namespace to fail." >&2
-  exit 1
-fi
-grep -F "Startup service.namespace mismatch: expected 'weather-demo', got ''." \
-  "$TEMP_DIR/missing-namespace/verifier-output.txt" >/dev/null
+  if run_crash_scenario "$platform" crash-no-record 1 0; then
+    echo "Expected a $platform crash scenario without an exported record to fail." >&2
+    exit 1
+  fi
+  grep -F "no app.crash record arrived within 180s of the relaunch" \
+    "$TEMP_DIR/$platform-crash-no-record/verifier-output.txt" >/dev/null
+
+  if run_crash_scenario "$platform" missing-namespace 1 1 1; then
+    echo "Expected $platform startup telemetry without service.namespace to fail." >&2
+    exit 1
+  fi
+  grep -F "Startup service.namespace mismatch: expected 'weather-demo', got ''." \
+    "$TEMP_DIR/$platform-missing-namespace/verifier-output.txt" >/dev/null
+
+  echo "$platform crash scenarios passed: crash-success, crash-no-exit, crash-no-record, missing-namespace."
+done
 
 echo "Verifier safety, platform launcher, and crash scenario probes passed."

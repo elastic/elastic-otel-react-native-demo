@@ -165,6 +165,25 @@ assert_equal() {
   fi
 }
 
+# The crash step below is shared; these are its only platform-specific facts.
+app_running() {
+  if [[ "$PLATFORM" == "android" ]]; then
+    adb shell pidof com.reactnativedemoapp 2>/dev/null | tr -d '\r' || true
+  else
+    xcrun simctl spawn "$DEVICE_ID" launchctl list 2>/dev/null |
+      grep -F 'UIKitApplication:com.reactnativedemoapp[' || true
+  fi
+}
+
+device_epoch() {
+  if [[ "$PLATFORM" == "android" ]]; then
+    adb shell date -u +%s | tr -d '\r'
+  else
+    # The iOS Simulator shares the host clock.
+    date -u +%s
+  fi
+}
+
 wait_for_operator() {
   local prompt="$1"
   local marker="$2"
@@ -308,64 +327,61 @@ app_span_kind=$(field "$ARTIFACT_DIR/app-http-span.json" '._source."span.kind" /
 assert_equal "Distributed trace.id" "$backend_trace" "$app_trace"
 assert_equal "App HTTP span kind" "CLIENT" "$(tr '[:lower:]' '[:upper:]' <<<"$app_span_kind")"
 
-summary_items="startup-root startup-child startup-log error-log widget-click widget-click-back app-http-span backend-span"
-if [[ "$PLATFORM" == "android" ]]; then
-  crash_message="Intentional crash from the EDOT React Native demo"
-  crash_query='{"size":1,"query":{"bool":{"filter":[{"term":{"service.name":{"value":"weather-demo-react-native"}}},{"exists":{"field":"exception.type"}},{"exists":{"field":"session.id"}},{"wildcard":{"exception.stacktrace":{"value":"*'"$crash_message"'*"}}}],"should":[{"term":{"event_name":{"value":"app.crash"}}},{"term":{"otel.event.name":{"value":"app.crash"}}}],"minimum_should_match":1}}}'
-  crash_count() {
-    jq -r '.hits.total.value' <<<"$(es_request "logs-*/_search" "$crash_query")"
-  }
+crash_message="Intentional crash from the EDOT React Native demo"
+crash_query='{"size":1,"query":{"bool":{"filter":[{"term":{"service.name":{"value":"weather-demo-react-native"}}},{"exists":{"field":"exception.type"}},{"exists":{"field":"session.id"}},{"wildcard":{"exception.stacktrace":{"value":"*'"$crash_message"'*"}}}],"should":[{"term":{"event_name":{"value":"app.crash"}}},{"term":{"otel.event.name":{"value":"app.crash"}}}],"minimum_should_match":1}}}'
+crash_count() {
+  jq -r '.hits.total.value' <<<"$(es_request "logs-*/_search" "$crash_query")"
+}
 
-  if [[ "${E2E_VERIFY_ONLY:-0}" != "1" ]]; then
-    crash_requested_at=$(adb shell date -u +%s | tr -d '\r')
-    echo '5. Return to the city picker and press "Crash".'
-    elapsed=0
-    until [[ -z "$(adb shell pidof com.reactnativedemoapp 2>/dev/null | tr -d '\r' || true)" ]]; do
-      if (( elapsed >= 180 )); then
-        echo "The app process did not exit within 180s of the Crash prompt; the crash did not happen." >&2
-        exit 1
-      fi
-      sleep 1
-      elapsed=$((elapsed + 1))
-    done
-    echo "The app process exited after the Crash press."
-
-    if [[ "$(crash_count)" != "0" ]]; then
-      echo "A crash record was exported before the relaunch; expected next-launch export." >&2
+if [[ "${E2E_VERIFY_ONLY:-0}" != "1" ]]; then
+  crash_requested_at=$(device_epoch)
+  echo '5. Return to the city picker and press "Crash".'
+  elapsed=0
+  until [[ -z "$(app_running)" ]]; do
+    if (( elapsed >= 180 )); then
+      echo "The app process did not exit within 180s of the Crash prompt; the crash did not happen." >&2
       exit 1
     fi
-    echo "Relaunching the app so EDOT Android exports the stored crash..."
-    "$SCRIPT_DIR/launch-app.sh" "$PLATFORM" >/dev/null
-  fi
-
-  crash_elapsed=0
-  until [[ "$(crash_count)" -gt 0 ]]; do
-    if (( crash_elapsed >= 180 )); then
-      echo "The app crashed, but no app.crash record arrived within 180s of the relaunch." >&2
-      exit 1
-    fi
-    echo "Waiting for the exported crash record (${crash_elapsed}s/180s)..." >&2
-    sleep 5
-    crash_elapsed=$((crash_elapsed + 5))
+    sleep 1
+    elapsed=$((elapsed + 1))
   done
-  jq '.hits.hits[0]' <<<"$(es_request "logs-*/_search" "$crash_query")" | tee "$ARTIFACT_DIR/crash.json"
+  echo "The app process exited after the Crash press."
 
-  crash_type=$(field "$ARTIFACT_DIR/crash.json" '._source.attributes."exception.type" // ._source."exception.type"')
-  crash_stacktrace=$(field "$ARTIFACT_DIR/crash.json" '._source.attributes."exception.stacktrace" // ._source."exception.stacktrace"')
-  crash_session=$(field "$ARTIFACT_DIR/crash.json" '._source.attributes."session.id" // ._source."session.id"')
-  if [[ -z "$crash_type" || -z "$crash_session" || "$crash_stacktrace" != *"$crash_message"* ]]; then
-    echo "The crash record lacks exception.type, session.id, or the intentional crash message." >&2
+  if [[ "$(crash_count)" != "0" ]]; then
+    echo "A crash record was exported before the relaunch; expected next-launch export." >&2
     exit 1
   fi
-  if [[ -n "${crash_requested_at:-}" ]]; then
-    crash_timestamp=$(field "$ARTIFACT_DIR/crash.json" '._source."@timestamp" | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601')
-    if [[ -z "$crash_timestamp" ]] || (( crash_timestamp < crash_requested_at )); then
-      echo "The crash record predates the Crash prompt; it is not from this run." >&2
-      exit 1
-    fi
-  fi
-  summary_items="$summary_items crash"
+  echo "Relaunching the app so the native EDOT SDK exports the stored crash..."
+  "$SCRIPT_DIR/launch-app.sh" "$PLATFORM" >/dev/null
 fi
+
+crash_elapsed=0
+until [[ "$(crash_count)" -gt 0 ]]; do
+  if (( crash_elapsed >= 180 )); then
+    echo "The app crashed, but no app.crash record arrived within 180s of the relaunch." >&2
+    exit 1
+  fi
+  echo "Waiting for the exported crash record (${crash_elapsed}s/180s)..." >&2
+  sleep 5
+  crash_elapsed=$((crash_elapsed + 5))
+done
+jq '.hits.hits[0]' <<<"$(es_request "logs-*/_search" "$crash_query")" | tee "$ARTIFACT_DIR/crash.json"
+
+crash_type=$(field "$ARTIFACT_DIR/crash.json" '._source.attributes."exception.type" // ._source."exception.type"')
+crash_stacktrace=$(field "$ARTIFACT_DIR/crash.json" '._source.attributes."exception.stacktrace" // ._source."exception.stacktrace"')
+crash_session=$(field "$ARTIFACT_DIR/crash.json" '._source.attributes."session.id" // ._source."session.id"')
+if [[ -z "$crash_type" || -z "$crash_session" || "$crash_stacktrace" != *"$crash_message"* ]]; then
+  echo "The crash record lacks exception.type, session.id, or the intentional crash message." >&2
+  exit 1
+fi
+if [[ -n "${crash_requested_at:-}" ]]; then
+  crash_timestamp=$(field "$ARTIFACT_DIR/crash.json" '._source."@timestamp" | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601')
+  if [[ -z "$crash_timestamp" ]] || (( crash_timestamp < crash_requested_at )); then
+    echo "The crash record predates the Crash prompt; it is not from this run." >&2
+    exit 1
+  fi
+fi
+summary_items="startup-root startup-child startup-log error-log widget-click widget-click-back app-http-span backend-span crash"
 
 printf '\nVerified Elasticsearch documents:\n'
 for item in $summary_items; do

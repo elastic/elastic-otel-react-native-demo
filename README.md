@@ -227,8 +227,8 @@ For repeatable document-level checks on either platform, follow
 and launches the selected release app, then checks parent, trace, and log
 correlation IDs, the independent ERROR log, the automatic widget-click
 EventRecords for **Fetch forecast** and **Back**, and the app/backend
-distributed trace. On Android it then asks you to press **Crash** and checks
-the `app.crash` record exported on the next launch.
+distributed trace. On both platforms it then asks you to press **Crash** and
+checks the `app.crash` record exported on the next launch.
 
 For more information, see the Android and iOS **Visualize telemetry** guidance:
 
@@ -254,9 +254,6 @@ this local clear-text configuration into production.
 - The iOS host adopts the UIScene lifecycle, which the stock React Native
   template lacks, because Xcode 27 builds terminate at launch on iOS 27
   without it. Otherwise the demo follows the stock template host shape.
-- The **Crash** button throws an uncaught JavaScript error. The shared verifier
-  asserts its `app.crash` export on Android only; iOS crash export is not
-  asserted.
 - Android requires API 26 or later.
 - The checked-in iOS workflow targets a simulator. Physical-device execution
   needs signing and LAN endpoint configuration.
