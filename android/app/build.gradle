@@ -18,7 +18,7 @@ android {
     namespace "com.reactnativedemoapp"
 
     defaultConfig {
-        applicationId "com.reactnativedemoapp"
+        applicationId "co.elastic.edot.reactnative.demo"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

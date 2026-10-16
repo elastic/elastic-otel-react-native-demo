@@ -1,7 +1,42 @@
 # Local E2E verification
 
-Use a fresh `start-local` data set. Start the stack and backend, build the
-release app for the selected platform, then run:
+These scripts need Python 3, `curl`, and `jq` in addition to the demo prerequisites.
+
+## Build and launch the release app
+
+`npm run android:check` runs the package's `setup-android` command and fails if it changes
+anything under `android/`. Check the Android setup, build the release APK, and install and launch
+it on the running emulator:
+
+```sh
+npm run android:check
+npm run android:build
+./scripts/e2e/launch-app.sh android
+```
+
+`npm run ios:check` runs the package's `setup-ios` command, fails if it changes anything under
+`ios/`, checks iOS autolinking and Swift formatting, and installs the pods from the lockfile. Check
+the iOS setup and build the release app for the iOS Simulator:
+
+```sh
+npm run ios:install
+npm run ios:check
+npm run ios:build
+```
+
+With one simulator booted, install and launch that release app:
+
+```sh
+./scripts/e2e/launch-app.sh ios
+```
+
+`launch-app.sh` installs the built release app with `adb` or `xcrun simctl`, forwards the Android
+emulator's OTLP port with `adb reverse tcp:4318 tcp:4318`, and launches the app.
+
+## Run the verifier
+
+Use a fresh `start-local` data set. Start the stack and backend, build the release app for the
+selected platform, then run:
 
 ```sh
 set -a
@@ -29,15 +64,14 @@ npm run ios:build
 Set `IOS_SIMULATOR_UDID` when more than one simulator is booted. The verifier
 first refuses any existing `weather-demo-react-native` or
 `weather-demo-backend` documents. It then installs and launches the built
-release app with `adb` or `xcrun simctl`, forwards the Android emulator's
-OTLP port with `adb reverse tcp:4318 tcp:4318`, and tells you when to fetch Berlin
-successfully and New York unsuccessfully. The UI actions remain operator-driven
-so both platforms exercise the same visible app behavior.
+release app with `launch-app.sh` and tells you when to fetch Berlin
+successfully and New York unsuccessfully. You perform the UI actions on both
+platforms, so both exercise the same visible app behavior.
 
 On both platforms, the verifier then asks you to press **Crash**. It waits
-until the app process exits: on Android, `adb shell pidof com.reactnativedemoapp`
+until the app process exits: on Android, `adb shell pidof co.elastic.edot.reactnative.demo`
 returns nothing; on iOS, `xcrun simctl spawn <udid> launchctl list` shows no
-running `UIKitApplication:com.reactnativedemoapp` job. It then confirms that no
+running `UIKitApplication:co.elastic.edot.reactnative.demo` job. It then confirms that no
 crash record was exported before the relaunch, relaunches the app with `launch-app.sh`, and
 waits for the `app.crash` record that the native EDOT SDK exports on the next
 launch. It fails with a message that says whether the process did not exit or
@@ -63,14 +97,12 @@ ERROR log, automatic `fetch-forecast-button` and `forecast-back-button`
 `app.widget.click` EventRecords, backend span, auto-instrumented app HTTP span sharing the backend's
 `trace.id`, and the `app.crash` record with `exception.type`,
 `session.id`, and an `exception.stacktrace` containing the intentional crash
-message. It accepts the compatible Android and iOS event-name
-representations instead of requiring one Elasticsearch field layout. For the
-ERROR log, it matches only the phrase `Forecast request failed:` in the log
-body and does not check the backend's HTTP status, so a backend status change
-needs only the unit tests in `__tests__/App.test.tsx` updated.
+message. It accepts both the Android and the iOS event-name representation in
+Elasticsearch. For the ERROR log, it matches only the phrase
+`Forecast request failed:` in the log body and does not check the backend's
+HTTP status.
 
 Matching documents are written to `build/e2e/`. Every failure also captures
 verifier output, cluster health, backend logs, container state, and either
 Android logcat or iOS Simulator logs. Run `npm run e2e:test` to exercise the URL
-safety guard, both launch paths, and the crash scenario on both platforms with
-focused command mocks.
+safety guard, both launch paths, and the crash scenario on both platforms.

@@ -17,8 +17,8 @@ case "$PLATFORM" in
     adb install -r "$APK"
     # The app exports OTLP to localhost:4318; forward it to the host collector.
     adb reverse tcp:4318 tcp:4318
-    adb shell am force-stop com.reactnativedemoapp
-    adb shell am start -n com.reactnativedemoapp/.MainActivity
+    adb shell am force-stop co.elastic.edot.reactnative.demo
+    adb shell am start -n co.elastic.edot.reactnative.demo/com.reactnativedemoapp.MainActivity
     echo "E2E_DEVICE_ID=$(adb get-serialno)"
     ;;
   ios)
@@ -52,7 +52,7 @@ case "$PLATFORM" in
     xcrun simctl launch \
       --terminate-running-process \
       "$simulator" \
-      com.reactnativedemoapp
+      co.elastic.edot.reactnative.demo
     echo "E2E_DEVICE_ID=$simulator"
     ;;
   *)

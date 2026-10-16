@@ -110,8 +110,8 @@ PATH="$fake_bin:$PATH" \
   grep -F "E2E_DEVICE_ID=emulator-5554" >/dev/null
 grep -F "adb install -r $TEMP_DIR/apps/app-release.apk" "$command_log" >/dev/null
 grep -F "adb reverse tcp:4318 tcp:4318" "$command_log" >/dev/null
-grep -F "adb shell am force-stop com.reactnativedemoapp" "$command_log" >/dev/null
-grep -F "adb shell am start -n com.reactnativedemoapp/.MainActivity" "$command_log" >/dev/null
+grep -F "adb shell am force-stop co.elastic.edot.reactnative.demo" "$command_log" >/dev/null
+grep -F "adb shell am start -n co.elastic.edot.reactnative.demo/com.reactnativedemoapp.MainActivity" "$command_log" >/dev/null
 
 : >"$command_log"
 PATH="$fake_bin:$PATH" \
@@ -120,7 +120,7 @@ PATH="$fake_bin:$PATH" \
   grep -F "E2E_DEVICE_ID=SIM-123" >/dev/null
 grep -F "xcrun simctl install SIM-123 $TEMP_DIR/apps/ReactNativeDemoApp.app" \
   "$command_log" >/dev/null
-grep -F "xcrun simctl launch --terminate-running-process SIM-123 com.reactnativedemoapp" \
+grep -F "xcrun simctl launch --terminate-running-process SIM-123 co.elastic.edot.reactnative.demo" \
   "$command_log" >/dev/null
 
 crash_bin="$TEMP_DIR/crash-bin"
@@ -178,7 +178,7 @@ printf 'adb %s\n' "$*" >>"$COMMAND_LOG"
 case "$*" in
   get-serialno) echo "emulator-5554" ;;
   "shell date -u +%s") echo "1790000000" ;;
-  "shell pidof com.reactnativedemoapp")
+  "shell pidof co.elastic.edot.reactnative.demo")
     if [[ "${FAKE_APP_EXITS:-0}" == "1" ]]; then
       exit 1
     fi
@@ -206,14 +206,14 @@ case "$*" in
     if (( launches >= 2 )); then
       touch "$CRASH_STATE/relaunched"
     fi
-    echo "com.reactnativedemoapp: 4321"
+    echo "co.elastic.edot.reactnative.demo: 4321"
     ;;
   "simctl spawn SIM-123 launchctl list")
     printf '4000\t0\tUIKitApplication:com.apple.Preferences[1a2b][rb-legacy]\n'
     if [[ "${FAKE_APP_EXITS:-0}" == "1" ]]; then
-      printf -- '-\t0\tUIKitApplication:com.reactnativedemoapp[3c4d][rb-legacy]\n'
+      printf -- '-\t0\tUIKitApplication:co.elastic.edot.reactnative.demo[3c4d][rb-legacy]\n'
     else
-      printf '4321\t0\tUIKitApplication:com.reactnativedemoapp[3c4d][rb-legacy]\n'
+      printf '4321\t0\tUIKitApplication:co.elastic.edot.reactnative.demo[3c4d][rb-legacy]\n'
     fi
     ;;
 esac
@@ -258,8 +258,8 @@ run_crash_scenario() {
 
 for platform in android ios; do
   case "$platform" in
-    android) launch_command="adb shell am start -n com.reactnativedemoapp/.MainActivity" ;;
-    ios) launch_command="xcrun simctl launch --terminate-running-process SIM-123 com.reactnativedemoapp" ;;
+    android) launch_command="adb shell am start -n co.elastic.edot.reactnative.demo/com.reactnativedemoapp.MainActivity" ;;
+    ios) launch_command="xcrun simctl launch --terminate-running-process SIM-123 co.elastic.edot.reactnative.demo" ;;
   esac
 
   run_crash_scenario "$platform" crash-success 1 1
