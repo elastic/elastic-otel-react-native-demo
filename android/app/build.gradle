@@ -4,7 +4,7 @@ apply plugin: "com.facebook.react"
 apply plugin: "co.elastic.otel.android.agent"
 apply plugin: "co.elastic.otel.android.instrumentation.okhttp"
 apply plugin: "co.elastic.otel.android.instrumentation.crash"
-apply from: "../../node_modules/@elastic/otel-react-native/android/elastic-otel-config.gradle"
+apply from: "../../node_modules/@elastic/otel-react-native/android/elastic-otel.gradle"
 
 react {
     autolinkLibrariesWithApp()
