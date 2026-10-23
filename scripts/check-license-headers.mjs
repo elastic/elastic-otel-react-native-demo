@@ -116,11 +116,14 @@ function contentAfterHeader(source, style) {
   }
   if (suffixes.size === 1) return suffixes.values().next().value;
 
-  // Recognizable license fragments without a supported shape need a manual
+  // Recognizable Elastic fragments without a supported shape need a manual
   // correction. Ordinary comments, including company mentions, stay intact.
   const leading = source.slice(0, header.length);
   if (
-    headerLines.some(line => /[A-Za-z]/.test(line) && leading.includes(line))
+    headerLines.some(
+      line =>
+        line.includes('Elastic Technologies Inc.') && leading.includes(line),
+    )
   ) {
     throw new Error('unrecognized malformed license header; repair manually');
   }
