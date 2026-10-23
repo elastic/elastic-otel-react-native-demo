@@ -94,6 +94,7 @@ function classify(path) {
 function splitFirstLine(source) {
   if (/^(#!|\/\/ swift-tools-version:|<\?xml)/.test(source)) {
     const end = source.indexOf('\n');
+    if (end === -1) return [source + '\n', ''];
     return [source.slice(0, end + 1), source.slice(end + 1)];
   }
   return ['', source];
