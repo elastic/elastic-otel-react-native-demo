@@ -179,6 +179,30 @@ JSON
       hit '{"service.name":"weather-demo-react-native","app.widget.id":"forecast-back-button","app.widget.name":"Back","scope":{"name":"@elastic/otel-react-native.interactions"},"attributes":{"otel.event.name":"app.widget.click"}}'
     elif [[ "$body" == *app.widget.id* ]]; then
       hit '{"service.name":"weather-demo-react-native","app.widget.id":"fetch-forecast-button","app.widget.name":"Fetch forecast","scope":{"name":"@elastic/otel-react-native.interactions"},"attributes":{"otel.event.name":"app.widget.click"}}'
+    elif [[ "$body" == *"/config/v1/agents"* ]]; then
+      if [[ "${FAKE_POLL_SPAN:-0}" == "1" ]]; then
+        hit '{"service.name":"weather-demo-react-native","trace.id":"t-poll","span.id":"s-poll","name":"GET /config/v1/agents","span.kind":"Client","url.path":"/config/v1/agents"}'
+      else
+        echo '{"hits":{"total":{"value":0},"hits":[]}}'
+      fi
+    elif [[ "$body" == *"url.path"* && "$body" == *"/v1/forecast"* ]]; then
+      if [[ "${FAKE_OMIT_PATH_CONTROL:-0}" == "1" ]]; then
+        echo '{"hits":{"total":{"value":0},"hits":[]}}'
+      else
+        hit '{"service.name":"weather-demo-react-native","trace.id":"t1","span.id":"s1","name":"GET /v1/forecast","span.kind":"Client","url.path":"/v1/forecast"}'
+      fi
+    elif [[ "$body" == *"city=New%20York"* ]]; then
+      hit '{"service.name":"weather-demo-backend","trace.id":"t-ny","span.id":"s-ny-backend","name":"GET /v1/forecast","http.response.status_code":500,"url.query":"city=New%20York"}'
+    elif [[ "$body" == *"t-ny"* ]]; then
+      if [[ "${FAKE_NY_STATUS:-500}" == "missing" ]]; then
+        hit '{"service.name":"weather-demo-react-native","trace.id":"t-ny","span.id":"s-ny","name":"GET /v1/forecast","span.kind":"Client"}'
+      elif [[ "${FAKE_NY_STATUS:-500}" == "0" ]]; then
+        hit '{"service.name":"weather-demo-react-native","trace.id":"t-ny","span.id":"s-ny","name":"GET /v1/forecast","span.kind":"Client","http.response.status_code":0}'
+      else
+        hit '{"service.name":"weather-demo-react-native","trace.id":"t-ny","span.id":"s-ny","name":"GET /v1/forecast","span.kind":"Client","http.response.status_code":500}'
+      fi
+    elif [[ "${FAKE_EXTRA_BERLIN_SPAN:-0}" == "1" && "$body" == *"t1"* && "$body" == *"weather-demo-react-native"* && "$body" != *"Creating app"* && "$body" != *"Initialize React Native UI"* && "$body" != *"app.widget"* && "$body" != *"Forecast request failed"* && "$body" != *"During app creation"* && "$body" != *"url.path"* ]]; then
+      printf '%s\n' '{"hits":{"total":{"value":2},"hits":[{"_id":"berlin-1","_source":{"service.name":"weather-demo-react-native","trace.id":"t1","span.id":"s1","name":"GET /v1/forecast","span.kind":"Client","parent.id":"s1","scope":{"name":"@elastic/otel-react-native"},"deployment.environment.name":"local","resource":{"attributes":{"service.namespace":"weather-demo"}}}},{"_id":"berlin-2","_source":{"service.name":"weather-demo-react-native","trace.id":"t1","span.id":"s2","name":"GET localhost","span.kind":"Client"}}]}}'
     elif [[ "${FAKE_OMIT_NAMESPACE:-0}" == "1" ]]; then
       hit '{"service.name":"weather-demo-react-native","trace.id":"t1","span.id":"s1","parent.id":"s1","span.kind":"Client","scope":{"name":"@elastic/otel-react-native"},"deployment.environment.name":"local"}'
     else
@@ -257,6 +281,10 @@ run_crash_scenario() {
   local app_exits="$3"
   local crash_exported="$4"
   local omit_namespace="${5:-0}"
+  local extra_berlin="${6:-0}"
+  local ny_status="${7:-500}"
+  local poll_span="${8:-0}"
+  local omit_path="${9:-0}"
   rm -f "$crash_state"/*
   : >"$command_log"
   PATH="$crash_bin:$PATH" \
@@ -266,6 +294,10 @@ run_crash_scenario() {
     FAKE_APP_EXITS="$app_exits" \
     FAKE_CRASH_EXPORTED="$crash_exported" \
     FAKE_OMIT_NAMESPACE="$omit_namespace" \
+    FAKE_EXTRA_BERLIN_SPAN="$extra_berlin" \
+    FAKE_NY_STATUS="$ny_status" \
+    FAKE_POLL_SPAN="$poll_span" \
+    FAKE_OMIT_PATH_CONTROL="$omit_path" \
     E2E_MARKER_DIR="$TEMP_DIR/markers" \
     E2E_ARTIFACT_DIR="$TEMP_DIR/$platform-$name" \
     "$crash_repository/scripts/e2e/verify.sh" "$platform" http://localhost:9200 \
@@ -309,7 +341,53 @@ for platform in android ios; do
   grep -F "Startup service.namespace mismatch: expected 'weather-demo', got ''." \
     "$TEMP_DIR/$platform-missing-namespace/verifier-output.txt" >/dev/null
 
-  echo "$platform crash scenarios passed: crash-success, crash-no-exit, crash-no-record, missing-namespace."
+  if run_crash_scenario "$platform" extra-berlin-span 1 1 0 1; then
+    echo "Expected a $platform run with two Berlin app spans to fail." >&2
+    exit 1
+  fi
+  grep -F "Expected exactly one app HTTP span in Berlin trace" \
+    "$TEMP_DIR/$platform-extra-berlin-span/verifier-output.txt" >/dev/null
+
+  if run_crash_scenario "$platform" ny-missing-status 1 1 0 0 missing; then
+    echo "Expected a $platform New York span without a status code to fail." >&2
+    exit 1
+  fi
+  grep -F "New York app HTTP span http.response.status_code mismatch: expected '500', got ''." \
+    "$TEMP_DIR/$platform-ny-missing-status/verifier-output.txt" >/dev/null
+
+  if run_crash_scenario "$platform" ny-zero-status 1 1 0 0 0; then
+    echo "Expected a $platform New York span with status 0 to fail." >&2
+    exit 1
+  fi
+  grep -F "New York app HTTP span http.response.status_code mismatch: expected '500', got '0'." \
+    "$TEMP_DIR/$platform-ny-zero-status/verifier-output.txt" >/dev/null
+
+  if [[ "$platform" == "ios" ]]; then
+    if run_crash_scenario ios ios-poll-span 1 1 0 0 500 1; then
+      echo "Expected an iOS poll span to fail." >&2
+      exit 1
+    fi
+    grep -F "URL path /config/v1/agents" \
+      "$TEMP_DIR/ios-ios-poll-span/verifier-output.txt" >/dev/null
+
+    if run_crash_scenario ios ios-missing-path-control 1 1 0 0 500 0 1; then
+      echo "Expected an iOS run with no path control to fail." >&2
+      exit 1
+    fi
+    grep -F "URL path field matched no Berlin app span" \
+      "$TEMP_DIR/ios-ios-missing-path-control/verifier-output.txt" >/dev/null
+    if grep -F "/config/v1/agents" \
+      "$TEMP_DIR/ios-ios-missing-path-control/verifier-output.txt" >/dev/null; then
+      echo "Path-control failure mentioned the poll path." >&2
+      exit 1
+    fi
+  else
+    run_crash_scenario android android-poll-span-ignored 1 1 0 0 500 1
+    grep -F "Local React Native android demo E2E verification passed." \
+      "$TEMP_DIR/android-android-poll-span-ignored/verifier-output.txt" >/dev/null
+  fi
+
+  echo "$platform crash scenarios passed: crash-success, crash-no-exit, crash-no-record, missing-namespace, extra-berlin-span, ny-missing-status, ny-zero-status."
 done
 
 echo "Verifier safety, platform launcher, and crash scenario probes passed."

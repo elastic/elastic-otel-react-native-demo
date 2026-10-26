@@ -181,6 +181,78 @@ assert_equal() {
   fi
 }
 
+list_span_names_and_ids() {
+  jq -r '.hits.hits[] | "- name=\(._source.name // "unknown") span.id=\(._source["span.id"] // ._source.span_id // "unknown")"'
+}
+
+app_path_query() {
+  local trace="$1"
+  local path_field="$2"
+  local path_value="$3"
+  jq -nc \
+    --arg trace "$trace" \
+    --arg field "$path_field" \
+    --arg path "$path_value" \
+    '{
+      size: 10,
+      query: {
+        bool: {
+          filter: [
+            {term: {"service.name": {value: "weather-demo-react-native"}}},
+            (if $trace == "" then empty else {term: {"trace.id": {value: $trace}}} end),
+            {term: {($field): {value: $path}}}
+          ]
+        }
+      }
+    }'
+}
+
+assert_one_berlin_app_span() {
+  local trace="$1"
+  local query="$2"
+  local response count kind
+  response=$(es_request "traces-*/_search" "$query")
+  count=$(jq -r '.hits.total.value' <<<"$response")
+  if [[ "$count" != "1" ]]; then
+    echo "Expected exactly one app HTTP span in Berlin trace $trace, found $count:" >&2
+    list_span_names_and_ids <<<"$response" >&2
+    if [[ "$count" -gt 10 ]]; then
+      echo "The span list is truncated at 10." >&2
+    fi
+    exit 1
+  fi
+  kind=$(jq -r '.hits.hits[0]._source["span.kind"] // .hits.hits[0]._source.kind // empty' <<<"$response")
+  assert_equal "Berlin app HTTP span kind" "CLIENT" "$(tr '[:lower:]' '[:upper:]' <<<"$kind")"
+}
+
+resolve_ios_url_path_field() {
+  local trace="$1"
+  local candidate response count
+  for candidate in "url.path" "attributes.url.path"; do
+    response=$(es_request "traces-*/_search" "$(app_path_query "$trace" "$candidate" "/v1/forecast")")
+    count=$(jq -r '.hits.total.value' <<<"$response")
+    if [[ "$count" -gt 0 ]]; then
+      jq '.hits.hits[0]' <<<"$response" >"$ARTIFACT_DIR/forecast-path-control.json"
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  echo "URL path field matched no Berlin app span with path /v1/forecast. Tried url.path and attributes.url.path." >&2
+  return 1
+}
+
+assert_no_ios_poll_span() {
+  local path_field="$1"
+  local response count
+  response=$(es_request "traces-*/_search" "$(app_path_query "" "$path_field" "/config/v1/agents")")
+  count=$(jq -r '.hits.total.value' <<<"$response")
+  if [[ "$count" != "0" ]]; then
+    echo "Found $count iOS app span(s) with URL path /config/v1/agents:" >&2
+    list_span_names_and_ids <<<"$response" >&2
+    exit 1
+  fi
+}
+
 # Platform-specific commands used by the crash step.
 app_running() {
   if [[ "$PLATFORM" == "android" ]]; then
@@ -344,6 +416,14 @@ app_span_kind=$(field "$ARTIFACT_DIR/app-http-span.json" '._source."span.kind" /
 assert_equal "Distributed trace.id" "$backend_trace" "$app_trace"
 assert_equal "App HTTP span kind" "CLIENT" "$(tr '[:lower:]' '[:upper:]' <<<"$app_span_kind")"
 
+new_york_backend_query='{"size":1,"query":{"bool":{"filter":[{"term":{"service.name":{"value":"weather-demo-backend"}}},{"term":{"name":{"value":"GET /v1/forecast"}}},{"term":{"http.response.status_code":{"value":500}}},{"term":{"url.query":{"value":"city=New%20York"}}}]}}}'
+wait_for_hit "traces-*" "New York backend span" "$new_york_backend_query" "$ARTIFACT_DIR/new-york-backend-span.json"
+new_york_trace=$(field "$ARTIFACT_DIR/new-york-backend-span.json" '._source."trace.id" // ._source.trace_id')
+new_york_app_query='{"size":10,"query":{"bool":{"filter":[{"term":{"service.name":{"value":"weather-demo-react-native"}}},{"term":{"trace.id":{"value":"'"$new_york_trace"'"}}}]}}}'
+wait_for_hit "traces-*" "New York app HTTP span" "$new_york_app_query" "$ARTIFACT_DIR/new-york-app-span.json"
+new_york_status=$(field "$ARTIFACT_DIR/new-york-app-span.json" '._source."http.response.status_code" // ._source.attributes."http.response.status_code"')
+assert_equal "New York app HTTP span http.response.status_code" "500" "$new_york_status"
+
 crash_message="Intentional crash from the EDOT React Native demo"
 crash_query='{"size":1,"query":{"bool":{"filter":[{"term":{"service.name":{"value":"weather-demo-react-native"}}},{"exists":{"field":"exception.type"}},{"exists":{"field":"session.id"}},{"wildcard":{"exception.stacktrace":{"value":"*'"$crash_message"'*"}}}],"should":[{"term":{"event_name":{"value":"app.crash"}}},{"term":{"otel.event.name":{"value":"app.crash"}}}],"minimum_should_match":1}}}'
 crash_count() {
@@ -398,7 +478,16 @@ if [[ -n "${crash_requested_at:-}" ]]; then
     exit 1
   fi
 fi
-summary_items="startup-root startup-child startup-log error-log widget-click widget-click-back app-http-span backend-span crash"
+assert_one_berlin_app_span "$backend_trace" "$app_http_query"
+if [[ "$PLATFORM" == "ios" ]]; then
+  ios_path_field=$(resolve_ios_url_path_field "$backend_trace")
+  assert_no_ios_poll_span "$ios_path_field"
+fi
+summary_items="startup-root startup-child startup-log error-log widget-click widget-click-back app-http-span backend-span new-york-backend-span new-york-app-span"
+if [[ "$PLATFORM" == "ios" ]]; then
+  summary_items="$summary_items forecast-path-control"
+fi
+summary_items="$summary_items crash"
 
 printf '\nVerified Elasticsearch documents:\n'
 for item in $summary_items; do

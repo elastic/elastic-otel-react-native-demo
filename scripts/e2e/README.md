@@ -95,7 +95,9 @@ checks the startup root/child relationship, the startup instrumentation scope
 `elastic-otel-config.json` on both platforms, the correlated startup log, independent
 ERROR log, automatic `fetch-forecast-button` and `forecast-back-button`
 `app.widget.click` EventRecords, backend span, auto-instrumented app HTTP span sharing the backend's
-`trace.id`, and the `app.crash` record with `exception.type`,
+`trace.id`, exactly one Berlin app HTTP span on both platforms, the New York app HTTP span's
+`http.response.status_code` of 500 on both platforms, no iOS app span with URL path
+`/config/v1/agents`, and the `app.crash` record with `exception.type`,
 `session.id`, and an `exception.stacktrace` containing the intentional crash
 message. It accepts both the Android and the iOS event-name representation in
 Elasticsearch. For the ERROR log, it matches only the phrase
