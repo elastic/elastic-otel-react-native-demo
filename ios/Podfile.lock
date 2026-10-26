@@ -1950,7 +1950,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   boost: 8502bfdc46e2804408af2e163049ece181009af4
   DoubleConversion: 501a575c40c0b50c89685762dd3e415e6bb26fb0
-  ElasticOtelReactNative: cf02031aef409b4693858481e7991de08e9db523
+  ElasticOtelReactNative: f3cc92bf4cca15742e10f667cdd98803f3af3f2b
   fast_float: 7c925d1cebf8328d4018d061f49377e9f887e3b4
   FBLazyVector: e08a27053b503eeb756ea4bd75d570d2f2522a1b
   fmt: ba0886e864ebb21d14c98b2e12e164b8002f5b93
