@@ -28,7 +28,9 @@
     "lockfile:check": "node scripts/check-lockfile.mjs",
     "start": "react-native start",
     "test": "jest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "headers:check": "node scripts/check-license-headers.mjs",
+    "headers:fix": "node scripts/check-license-headers.mjs --fix"
   },
   "dependencies": {
     "@elastic/otel-react-native": "file:../elastic-otel-react-native",
@@ -59,5 +61,6 @@
   },
   "engines": {
     "node": ">= 22.11.0"
-  }
+  },
+  "license": "Apache-2.0"
 }

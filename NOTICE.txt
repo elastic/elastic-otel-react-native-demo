@@ -1,0 +1,2 @@
+Elastic Distribution of OpenTelemetry React Native demo
+Copyright 2026 Elastic Technologies Inc.
