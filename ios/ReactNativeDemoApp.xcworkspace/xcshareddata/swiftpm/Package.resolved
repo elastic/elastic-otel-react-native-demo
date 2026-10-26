@@ -6,8 +6,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/elastic/apm-agent-ios.git",
       "state" : {
-        "revision" : "2825eb91823028288ea2b9c6607ce8278b16c881",
-        "version" : "2.2.0"
+        "revision" : "07548dce91837a615cc1d8a158a85de1d81ee7e4",
+        "version" : "2.3.0"
       }
     },
     {
@@ -17,15 +17,6 @@
       "state" : {
         "revision" : "6a8927df5a91710b414caba4f8a088dead4633db",
         "version" : "1.27.5"
-      }
-    },
-    {
-      "identity" : "kronos",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/MobileNativeFoundation/Kronos.git",
-      "state" : {
-        "revision" : "f331821314f9b35867a18c5c8fc2f918536d79ac",
-        "version" : "4.3.1"
       }
     },
     {
