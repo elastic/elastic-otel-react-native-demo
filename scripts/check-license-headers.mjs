@@ -75,6 +75,7 @@ function classify(path) {
       '.gitignore',
       '.npmignore',
       '.watchmanconfig',
+      '.gitattributes',
       'Package.resolved',
       'Gemfile.lock',
       'Podfile.lock',
@@ -150,6 +151,11 @@ for (const path of paths) {
     checked++;
     const filename = resolve(root, path);
     const source = readFileSync(filename, 'utf8');
+    if (source.includes('\r\n')) {
+      throw new Error(
+        'LF line endings required; convert this file to LF before repairing headers',
+      );
+    }
     const [first, rest] = splitFirstLine(source);
     const header = headers[style];
     if (rest.startsWith(header)) continue;
