@@ -48,7 +48,7 @@ update those two pins together. Android's stack is installed by start-local with
 ## Dependency updates
 
 `.github/renovate.json` extends Elastic's configuration and keeps updates ungrouped. Renovate
-ignores the packages owned by updatecli and their React peer.
+ignores the packages owned by updatecli, their React peer, and its matching test renderer.
 
 The weekday/dispatched `updatecli` workflow runs on macOS and uses a Vault ephemeral token.
 It requires Backstage registration, repository bootstrap enabling Renovate, and the token policy
@@ -60,7 +60,8 @@ and pull-request write access, so its PRs trigger CI.
 One shared manifest, `.ci/updatecli/package.yml`, and three values files maintain one rolling PR
 each for the bridge, React Native, and safe-area-context. Sources select the highest stable npm
 version published at least seven days ago. A React Native update selects the highest stable React
-version satisfying its new `peerDependencies.react` range and writes an exact pin.
+version satisfying its new `peerDependencies.react` range and writes matching exact pins for
+`react` and `react-test-renderer`.
 `.ci/updatecli/update-package.js` owns that selection and manifest update.
 
 Each pipeline installs dependencies, applies the exact pin, runs `npm install`, `setup-android`,

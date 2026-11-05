@@ -52,10 +52,12 @@ if (require.main === module) {
   }
   if (name === 'react-native') {
     const range = npmView(`react-native@${version}`, 'peerDependencies.react');
-    manifest.dependencies.react = selectReactVersion(
+    const reactVersion = selectReactVersion(
       npmView('react', 'versions'),
       range,
     );
+    manifest.dependencies.react = reactVersion;
+    manifest.devDependencies['react-test-renderer'] = reactVersion;
   }
   manifest.dependencies[name] = version;
   writeFileSync('package.json', JSON.stringify(manifest, null, 2) + '\n');

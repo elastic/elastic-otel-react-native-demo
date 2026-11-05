@@ -6,7 +6,8 @@
     "@elastic/otel-react-native",
     "react-native",
     "react-native-safe-area-context",
-    "react"
+    "react",
+    "react-test-renderer"
   ],
   "packageRules": [
     {

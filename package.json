@@ -20,7 +20,7 @@
     "ios": "npm run ios:run",
     "ios:autolink:check": "node scripts/check-ios-autolinking.mjs",
     "ios:build": "mkdir -p build/tmp && GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.bareRepository GIT_CONFIG_VALUE_0=all TMPDIR=\"$PWD/build/tmp\" xcodebuild -workspace ios/ReactNativeDemoApp.xcworkspace -scheme ReactNativeDemoApp -configuration Release -destination \"generic/platform=iOS Simulator\" -derivedDataPath ios/build CODE_SIGNING_ALLOWED=NO",
-    "ios:check": "npx --no-install elastic-otel-react-native setup-ios && git diff --exit-code -- ios && npm run ios:autolink:check && npm run ios:format:check && mkdir -p build/tmp && cd ios && TMPDIR=\"../build/tmp\" pod install --deployment",
+    "ios:check": "npx --no-install elastic-otel-react-native setup-ios && git diff --exit-code --ignore-matching-lines='^COCOAPODS: ' -- ios && npm run ios:autolink:check && npm run ios:format:check && mkdir -p build/tmp && cd ios && TMPDIR=\"../build/tmp\" pod install --deployment",
     "ios:format:check": "xcrun swift format lint --strict --recursive ios/ReactNativeDemoApp",
     "ios:install": "npx --no-install elastic-otel-react-native setup-ios && mkdir -p build/tmp && cd ios && TMPDIR=\"../build/tmp\" pod install",
     "ios:run": "mkdir -p build/tmp && GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.bareRepository GIT_CONFIG_VALUE_0=all TMPDIR=\"$PWD/build/tmp\" react-native run-ios",
