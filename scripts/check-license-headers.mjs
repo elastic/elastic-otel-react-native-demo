@@ -64,7 +64,8 @@ function classify(path) {
   if (
     /\.(sh|py|rb|podspec)$/.test(path) ||
     ['Podfile', 'Gemfile', 'backend-manager'].includes(name) ||
-    /^\.github\/workflows\/[^/]+\.yml$/.test(path)
+    /^\.github\/workflows\/[^/]+\.yml$/.test(path) ||
+    /^(?:\.ci\/updatecli|scripts\/e2e)\/[^/]+\.yml$/.test(path)
   ) {
     return 'hash';
   }
@@ -74,6 +75,7 @@ function classify(path) {
       'NOTICE.txt',
       '.gitignore',
       '.npmignore',
+      '.node-version',
       '.watchmanconfig',
       '.gitattributes',
       'Package.resolved',

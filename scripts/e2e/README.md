@@ -2,6 +2,32 @@
 
 These scripts need Python 3, `curl`, and `jq` in addition to the demo prerequisites.
 
+## Run the hosted CI path locally
+
+The CI entry point starts a fresh stack, builds the Release app, drives the UI, verifies telemetry,
+and cleans up its own processes. It refuses to replace services already listening on ports 9200,
+4318, or 8080. Start with `npm ci`.
+
+For Android, start one emulator and Docker, then run:
+
+```sh
+bash scripts/e2e/ci.sh android
+```
+
+For iOS, use macOS with Xcode, its matching iOS Simulator runtime, CocoaPods, and JDK 21.
+Read the download pins from the workflow, then run:
+
+```sh
+export ELASTIC_VERSION=$(ruby -ryaml -e 'puts YAML.load_file(".github/workflows/ci.yml")["env"]["ELASTIC_VERSION"]')
+export BACKEND_VERSION=$(ruby -ryaml -e 'puts YAML.load_file(".github/workflows/ci.yml")["env"]["BACKEND_VERSION"]')
+bash scripts/e2e/ci.sh ios
+```
+
+The iOS path creates and deletes its own simulator. It downloads checksum-verified native
+Elasticsearch and Elastic Agent archives and the backend JAR into `.ci-cache/`. Docker is not
+needed for that path. The collector configuration is `scripts/e2e/otel.yml`.
+See [CI documentation](../../.github/CI.md) for jobs, dependency automation, and diagnostics.
+
 ## Build and launch the release app
 
 `npm run android:check` runs the package's `setup-android` command and fails if it changes
@@ -68,6 +94,35 @@ release app with `launch-app.sh` and tells you when to fetch Berlin
 successfully and New York unsuccessfully. You perform the UI actions on both
 platforms, so both exercise the same visible app behavior.
 
+### Automatic UI step hook
+
+Set `E2E_STEP_COMMAND` to a trusted shell command to run UI steps without operator input.
+The verifier appends one final argument: `berlin`, `new-york`, or `crash`.
+It exports the selected device as `E2E_DEVICE_ID`. A nonzero command exit fails verification
+and names the failed step. For example, with a fresh stack and the built Android app:
+
+```sh
+E2E_STEP_COMMAND="python3 scripts/e2e/android-step.py" \
+  scripts/e2e/verify.sh android "$ES_LOCAL_URL" "$ES_LOCAL_API_KEY"
+```
+
+For iOS, set `IOS_SIMULATOR_UDID` if multiple simulators are booted:
+
+```sh
+E2E_STEP_COMMAND="bash scripts/e2e/ios-step.sh" \
+  scripts/e2e/verify.sh ios "$ES_LOCAL_URL" "$ES_LOCAL_API_KEY"
+```
+
+The Android driver reads the UI hierarchy and taps visible city text and existing button
+identifiers or labels. The standalone `scripts/e2e/ios/Driver.xcodeproj` has no host app and
+addresses the installed demo by bundle ID. Its runner builds once and selects one test per step.
+Neither driver changes app labels or identifiers. The verifier owns crash detection and relaunch.
+
+With the hook unset, the two forecast steps accept operator input or wait for
+`berlin-complete` and `new-york-complete` files under `E2E_MARKER_DIR`. The crash step waits for
+the operator to crash the app. A hook takes precedence over markers. To exercise failure
+diagnostics, set `E2E_STEP_COMMAND="exit 1"` against a fresh stack and built app.
+
 On both platforms, the verifier then asks you to press **Crash**. It waits
 until the app process exits: on Android, `adb shell pidof co.elastic.edot.reactnative.demo`
 returns nothing; on iOS, `xcrun simctl spawn <udid> launchctl list` shows no
@@ -76,6 +131,7 @@ crash record was exported before the relaunch, relaunches the app with `launch-a
 waits for the `app.crash` record that the native EDOT SDK exports on the next
 launch. It fails with a message that says whether the process did not exit or
 the crash record did not arrive.
+The crash freshness check accepts ISO timestamps and Elasticsearch epoch-millisecond timestamps.
 
 For a repeated run against local loopback Elasticsearch, set
 `E2E_LOCAL_RERUN=1`. This mode deletes only documents whose exact service name

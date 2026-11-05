@@ -155,7 +155,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 hit() {
-  printf '{"hits":{"total":{"value":1},"hits":[{"_id":"fake","_source":%s}]}}\n' "$1"
+  local document="$1"
+  if [[ -n "${FAKE_CRASH_TIMESTAMP:-}" && "$document" == *'"@timestamp"'* ]]; then
+    document=$(jq --argjson timestamp "$FAKE_CRASH_TIMESTAMP" '.["@timestamp"] = $timestamp' <<<"$document")
+  fi
+  printf '{"hits":{"total":{"value":1},"hits":[{"_id":"fake","_source":%s}]}}\n' "$document"
 }
 case "$url" in
   */_count) echo '{"count":0}' ;;
@@ -298,11 +302,19 @@ run_crash_scenario() {
     FAKE_NY_STATUS="$ny_status" \
     FAKE_POLL_SPAN="$poll_span" \
     FAKE_OMIT_PATH_CONTROL="$omit_path" \
-    E2E_MARKER_DIR="$TEMP_DIR/markers" \
+    FAKE_CRASH_TIMESTAMP="${CRASH_TIMESTAMP:-}" \
+    E2E_STEP_COMMAND="${STEP_COMMAND:-}" \
+    E2E_MARKER_DIR="${STEP_MARKER_DIR-$TEMP_DIR/markers}" \
     E2E_ARTIFACT_DIR="$TEMP_DIR/$platform-$name" \
     "$crash_repository/scripts/e2e/verify.sh" "$platform" http://localhost:9200 \
     "not-a-real-key" >/dev/null 2>&1
 }
+
+cat >"$TEMP_DIR/step-hook.sh" <<'EOF'
+#!/usr/bin/env bash
+echo "$2:$E2E_DEVICE_ID" >>"$1"
+[[ "$2" != "${FAIL_STEP:-}" ]]
+EOF
 
 for platform in android ios; do
   case "$platform" in
@@ -319,6 +331,47 @@ for platform in android ios; do
     echo "Expected the $platform crash scenario to relaunch the app once." >&2
     exit 1
   fi
+
+  STEP_COMMAND="bash \"$TEMP_DIR/step-hook.sh\" \"$TEMP_DIR/steps.log\""
+  STEP_MARKER_DIR="$TEMP_DIR/nonexistent-markers"
+  : >"$TEMP_DIR/steps.log"
+  run_crash_scenario "$platform" hook-success 1 1
+  case "$platform" in
+    android) expected_device=emulator-5554 ;;
+    ios) expected_device=SIM-123 ;;
+  esac
+  printf 'berlin:%s\nnew-york:%s\ncrash:%s\n' \
+    "$expected_device" "$expected_device" "$expected_device" \
+    >"$TEMP_DIR/expected-steps.log"
+  diff -u "$TEMP_DIR/expected-steps.log" "$TEMP_DIR/steps.log"
+  for step in berlin new-york crash; do
+    if FAIL_STEP="$step" run_crash_scenario "$platform" "hook-failure-$step" 1 1; then
+      echo "Expected the $platform $step hook failure to fail verification." >&2
+      exit 1
+    fi
+    grep -F "UI step '$step' failed." \
+      "$TEMP_DIR/$platform-hook-failure-$step/verifier-output.txt" >/dev/null
+    test -s "$TEMP_DIR/$platform-hook-failure-$step/cluster-health.json"
+  done
+  unset STEP_COMMAND
+  # With neither hook nor markers, the two forecast prompts accept stdin.
+  STEP_MARKER_DIR=""
+  run_crash_scenario "$platform" hook-unset 1 1 <<< $'\n\n'
+  if grep -F "Running UI step:" "$TEMP_DIR/$platform-hook-unset/verifier-output.txt"; then
+    echo "An unset hook unexpectedly ran." >&2
+    exit 1
+  fi
+  unset STEP_MARKER_DIR
+
+  for timestamp in '1790000000123.456' '"1790000000123.456"'; do
+    CRASH_TIMESTAMP="$timestamp" run_crash_scenario "$platform" epoch-millis 1 1
+  done
+  if CRASH_TIMESTAMP='"1789999999123.456"' run_crash_scenario "$platform" stale-epoch-millis 1 1; then
+    echo "Expected a $platform crash timestamp older than the prompt to fail." >&2
+    exit 1
+  fi
+  grep -F "The crash record predates the Crash prompt" \
+    "$TEMP_DIR/$platform-stale-epoch-millis/verifier-output.txt" >/dev/null
 
   if run_crash_scenario "$platform" crash-no-exit 0 1; then
     echo "Expected a $platform crash scenario whose process never exits to fail." >&2

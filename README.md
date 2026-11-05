@@ -73,9 +73,6 @@ part of [Step 1](#1-start-the-elastic-stack) via start-local.
 
 - [Node.js](https://nodejs.org/) 22.11 or newer, with npm.
 - [Docker](https://www.docker.com/).
-- A checkout of
-  [elastic/elastic-otel-react-native](https://github.com/elastic/elastic-otel-react-native) next to
-  this repository, at `../elastic-otel-react-native`.
 - For Android: JDK 21 and an
   [Android emulator](https://developer.android.com/studio/run/emulator#get-started) running API
   level 26 or newer.
@@ -141,11 +138,11 @@ To stop the backend and remove the Docker image from your machine:
 
 ### 3. Run the app
 
-Install the EDOT React Native checkout from the sibling folder. Run this command from the
-repository root:
+Install the app's dependencies, including the published EDOT React Native package. Run this
+command from the repository root:
 
 ```sh
-npm install ../elastic-otel-react-native
+npm ci
 ```
 
 To run the app on Android, start an emulator. The app sends telemetry to `localhost:4318`, so
