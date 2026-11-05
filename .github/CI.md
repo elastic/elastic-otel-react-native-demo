@@ -37,13 +37,16 @@ the optional verifier step hook.
 Both E2E jobs upload `build/e2e/*` after success or failure, including when a UI hook fails.
 The files contain the verifier output, matching Elasticsearch documents, process/stack logs, and
 device logs. Android also records the last UI hierarchy; iOS records one XCUITest result bundle
-per step. Symbolication artifacts are not uploaded.
+per step. The CI wrapper retains the latest 100 trace and log documents in separate snapshots
+without the verifier's attribute filters. Android includes Elasticsearch and collector container
+logs; iOS simulator diagnostics include info/debug levels. Symbolication artifacts are not uploaded.
 
 CI Node.js setup reads `.node-version`; each job declares its own setup action.
 `ELASTIC_VERSION` and `BACKEND_VERSION` are pinned in `ci.yml`. The native iOS downloads are
 cached separately by version, runner OS, and architecture, and verified against their published
 SHA-512 or SHA-256 files on every use. The backend version also appears in `backend-manager`;
-update those two pins together. Android's stack is installed by start-local with `--esonly --edot`.
+update those two pins together. Android's stack is installed by start-local with
+`-v "$ELASTIC_VERSION" --esonly --edot`.
 
 ## Dependency updates
 

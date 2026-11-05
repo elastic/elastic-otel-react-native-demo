@@ -139,6 +139,80 @@ grep -F "xcrun simctl install SIM-123 $TEMP_DIR/apps/ReactNativeDemoApp.app" \
 grep -F "xcrun simctl launch --terminate-running-process SIM-123 co.elastic.edot.reactnative.demo" \
   "$command_log" >/dev/null
 
+ci_root="$TEMP_DIR/ci"
+ci_bin="$ci_root/bin"
+mkdir -p "$ci_bin" "$ci_root/scripts/e2e" "$ci_root/elastic-start-local"
+cp "$REPOSITORY_ROOT/scripts/e2e/ci.sh" "$ci_root/scripts/e2e/ci.sh"
+cp "$fake_bin/adb" "$ci_bin/adb"
+cat >"$ci_root/elastic-start-local/.env" <<'EOF'
+ES_LOCAL_URL=http://localhost:9200
+ES_LOCAL_API_KEY=fixture-key
+ES_LOCAL_CONTAINER_NAME=fixture-elasticsearch
+EDOT_LOCAL_CONTAINER_NAME=fixture-collector
+EOF
+cat >"$ci_bin/curl" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$REQUEST_LOG"
+if [[ "$*" == *https://elastic.co/start-local* ]]; then
+  printf 'printf "installer %%s\\n" "$*" >>"$COMMAND_LOG"\n'
+else
+  printf '{"hits":{"hits":[{"_source":{"fixture.unmatched":true}}]}}\n'
+fi
+EOF
+cat >"$ci_bin/docker" <<'EOF'
+#!/usr/bin/env bash
+printf 'docker %s\n' "$*" >>"$COMMAND_LOG"
+printf 'fixture container output: %s\n' "$*"
+EOF
+cat >"$ci_bin/npm" <<'EOF'
+#!/usr/bin/env bash
+echo "Intentional fixture build failure." >&2
+exit 17
+EOF
+cat >"$ci_bin/python3" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+cat >"$ci_root/backend-manager" <<'EOF'
+#!/usr/bin/env bash
+printf 'backend %s\n' "$*" >>"$COMMAND_LOG"
+EOF
+cp "$ci_root/backend-manager" "$ci_root/elastic-start-local/stop.sh"
+chmod +x "$ci_bin/"* "$ci_root/backend-manager" "$ci_root/elastic-start-local/stop.sh"
+: >"$command_log"
+if env -u ELASTIC_VERSION PATH="$ci_bin:$PATH" \
+  REQUEST_LOG="$request_log" COMMAND_LOG="$command_log" \
+  "$ci_root/scripts/e2e/ci.sh" android >"$ci_root/missing-version.log" 2>&1; then
+  echo "Expected CI to reject a missing Elastic version." >&2
+  exit 1
+fi
+grep -F "Set ELASTIC_VERSION" "$ci_root/missing-version.log" >/dev/null
+if [[ -s "$command_log" ]]; then
+  echo "Missing version must fail before starting the stack." >&2
+  exit 1
+fi
+if PATH="$ci_bin:$PATH" ELASTIC_VERSION=9.4.2 \
+  REQUEST_LOG="$request_log" COMMAND_LOG="$command_log" \
+  "$ci_root/scripts/e2e/ci.sh" android; then
+  echo "Expected the fixture build to fail." >&2
+  exit 1
+else
+  status=$?
+fi
+if [[ "$status" -ne 17 ]]; then
+  echo "CI cleanup returned $status instead of the original build failure." >&2
+  exit 1
+fi
+grep -F "installer -v 9.4.2 --esonly --edot" "$command_log" >/dev/null
+grep -F "fixture container output: logs fixture-elasticsearch" \
+  "$ci_root/build/e2e/elasticsearch.log" >/dev/null
+grep -F "fixture container output: logs fixture-collector" \
+  "$ci_root/build/e2e/collector.log" >/dev/null
+for signal in traces logs; do
+  jq -e '.hits.hits[0]._source["fixture.unmatched"] == true' \
+    "$ci_root/build/e2e/recent-$signal.json" >/dev/null
+done
+
 crash_bin="$TEMP_DIR/crash-bin"
 crash_state="$TEMP_DIR/crash-state"
 mkdir -p "$crash_bin" "$crash_state" "$TEMP_DIR/markers"

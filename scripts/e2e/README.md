@@ -8,6 +8,12 @@ The CI entry point starts a fresh stack, builds the Release app, drives the UI, 
 and cleans up its own processes. It refuses to replace services already listening on ports 9200,
 4318, or 8080. Start with `npm ci`.
 
+Read the shared Elastic version pin from the workflow:
+
+```sh
+export ELASTIC_VERSION=$(ruby -ryaml -e 'puts YAML.load_file(".github/workflows/ci.yml")["env"]["ELASTIC_VERSION"]')
+```
+
 For Android, start one emulator and Docker, then run:
 
 ```sh
@@ -15,10 +21,9 @@ bash scripts/e2e/ci.sh android
 ```
 
 For iOS, use macOS with Xcode, its matching iOS Simulator runtime, CocoaPods, and JDK 21.
-Read the download pins from the workflow, then run:
+Read the backend download pin from the workflow, then run:
 
 ```sh
-export ELASTIC_VERSION=$(ruby -ryaml -e 'puts YAML.load_file(".github/workflows/ci.yml")["env"]["ELASTIC_VERSION"]')
 export BACKEND_VERSION=$(ruby -ryaml -e 'puts YAML.load_file(".github/workflows/ci.yml")["env"]["BACKEND_VERSION"]')
 bash scripts/e2e/ci.sh ios
 ```

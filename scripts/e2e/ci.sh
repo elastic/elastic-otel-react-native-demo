@@ -23,6 +23,7 @@ if [[ "$platform" != android && "$platform" != ios ]]; then
   echo "Usage: $0 <android|ios>" >&2
   exit 1
 fi
+: "${ELASTIC_VERSION:?Set ELASTIC_VERSION from .github/workflows/ci.yml}"
 export E2E_ARTIFACT_DIR="$ROOT/build/e2e"
 mkdir -p "$E2E_ARTIFACT_DIR" "$ROOT/build/tmp"
 export TMPDIR="$ROOT/build/tmp"
@@ -42,17 +43,30 @@ cleanup() {
     curl_args+=(-H "Authorization: ApiKey $ES_LOCAL_API_KEY")
   fi
   curl "${curl_args[@]}" http://localhost:9200/_cluster/health >"$E2E_ARTIFACT_DIR/cluster-health.json"
+  for signal in traces logs; do
+    curl "${curl_args[@]}" \
+      -H "Content-Type: application/json" \
+      -d '{"size":100,"sort":[{"@timestamp":{"order":"desc","unmapped_type":"date"}}]}' \
+      "http://localhost:9200/$signal-*/_search?ignore_unavailable=true" \
+      >"$E2E_ARTIFACT_DIR/recent-$signal.json"
+  done
   if [[ "$platform" == android ]]; then
     adb logcat -d >"$E2E_ARTIFACT_DIR/logcat.txt" 2>&1
     adb shell am force-stop co.elastic.edot.reactnative.demo
     if [[ "$docker_started" == 1 ]]; then
       docker logs react-native-weather-backend >"$E2E_ARTIFACT_DIR/backend.log" 2>&1
+      if [[ -n "${ES_LOCAL_CONTAINER_NAME:-}" ]]; then
+        docker logs "$ES_LOCAL_CONTAINER_NAME" >"$E2E_ARTIFACT_DIR/elasticsearch.log" 2>&1
+      fi
+      if [[ -n "${EDOT_LOCAL_CONTAINER_NAME:-}" ]]; then
+        docker logs "$EDOT_LOCAL_CONTAINER_NAME" >"$E2E_ARTIFACT_DIR/collector.log" 2>&1
+      fi
       docker ps -a >"$E2E_ARTIFACT_DIR/docker-ps.txt" 2>&1
       ./backend-manager stop
       (cd elastic-start-local && ./stop.sh)
     fi
   elif [[ -n "$simulator" ]]; then
-    xcrun simctl spawn "$simulator" log show --style compact --last 10m \
+    xcrun simctl spawn "$simulator" log show --style compact --info --debug --last 10m \
       --predicate 'process == "ReactNativeDemoApp"' >"$E2E_ARTIFACT_DIR/ios-simulator.log" 2>&1
     xcrun simctl shutdown "$simulator"
     xcrun simctl delete "$simulator"
@@ -106,16 +120,15 @@ download_verified() {
 
 if [[ "$platform" == android ]]; then
   docker_started=1
-  curl -fsSL https://elastic.co/start-local | sh -s -- --esonly --edot
-  ./backend-manager start
-  npm run android:build
+  curl -fsSL https://elastic.co/start-local | sh -s -- -v "$ELASTIC_VERSION" --esonly --edot
   set -a
   source elastic-start-local/.env
   set +a
+  ./backend-manager start
+  npm run android:build
   export E2E_STEP_COMMAND="python3 scripts/e2e/android-step.py"
   scripts/e2e/verify.sh android "$ES_LOCAL_URL" "$ES_LOCAL_API_KEY"
 else
-  : "${ELASTIC_VERSION:?Set ELASTIC_VERSION from .github/workflows/ci.yml}"
   : "${BACKEND_VERSION:?Set BACKEND_VERSION from .github/workflows/ci.yml}"
   case "$(uname -m)" in
     arm64) arch=aarch64 ;;
