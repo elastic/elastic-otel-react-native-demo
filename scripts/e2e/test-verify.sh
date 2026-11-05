@@ -139,6 +139,80 @@ grep -F "xcrun simctl install SIM-123 $TEMP_DIR/apps/ReactNativeDemoApp.app" \
 grep -F "xcrun simctl launch --terminate-running-process SIM-123 co.elastic.edot.reactnative.demo" \
   "$command_log" >/dev/null
 
+ci_root="$TEMP_DIR/ci"
+ci_bin="$ci_root/bin"
+mkdir -p "$ci_bin" "$ci_root/scripts/e2e" "$ci_root/elastic-start-local"
+cp "$REPOSITORY_ROOT/scripts/e2e/ci.sh" "$ci_root/scripts/e2e/ci.sh"
+cp "$fake_bin/adb" "$ci_bin/adb"
+cat >"$ci_root/elastic-start-local/.env" <<'EOF'
+ES_LOCAL_URL=http://localhost:9200
+ES_LOCAL_API_KEY=fixture-key
+ES_LOCAL_CONTAINER_NAME=fixture-elasticsearch
+EDOT_LOCAL_CONTAINER_NAME=fixture-collector
+EOF
+cat >"$ci_bin/curl" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$REQUEST_LOG"
+if [[ "$*" == *https://elastic.co/start-local* ]]; then
+  printf 'printf "installer %%s\\n" "$*" >>"$COMMAND_LOG"\n'
+else
+  printf '{"hits":{"hits":[{"_source":{"fixture.unmatched":true}}]}}\n'
+fi
+EOF
+cat >"$ci_bin/docker" <<'EOF'
+#!/usr/bin/env bash
+printf 'docker %s\n' "$*" >>"$COMMAND_LOG"
+printf 'fixture container output: %s\n' "$*"
+EOF
+cat >"$ci_bin/npm" <<'EOF'
+#!/usr/bin/env bash
+echo "Intentional fixture build failure." >&2
+exit 17
+EOF
+cat >"$ci_bin/python3" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+cat >"$ci_root/backend-manager" <<'EOF'
+#!/usr/bin/env bash
+printf 'backend %s\n' "$*" >>"$COMMAND_LOG"
+EOF
+cp "$ci_root/backend-manager" "$ci_root/elastic-start-local/stop.sh"
+chmod +x "$ci_bin/"* "$ci_root/backend-manager" "$ci_root/elastic-start-local/stop.sh"
+: >"$command_log"
+if env -u ELASTIC_VERSION PATH="$ci_bin:$PATH" \
+  REQUEST_LOG="$request_log" COMMAND_LOG="$command_log" \
+  "$ci_root/scripts/e2e/ci.sh" android >"$ci_root/missing-version.log" 2>&1; then
+  echo "Expected CI to reject a missing Elastic version." >&2
+  exit 1
+fi
+grep -F "Set ELASTIC_VERSION" "$ci_root/missing-version.log" >/dev/null
+if [[ -s "$command_log" ]]; then
+  echo "Missing version must fail before starting the stack." >&2
+  exit 1
+fi
+if PATH="$ci_bin:$PATH" ELASTIC_VERSION=9.4.2 \
+  REQUEST_LOG="$request_log" COMMAND_LOG="$command_log" \
+  "$ci_root/scripts/e2e/ci.sh" android; then
+  echo "Expected the fixture build to fail." >&2
+  exit 1
+else
+  status=$?
+fi
+if [[ "$status" -ne 17 ]]; then
+  echo "CI cleanup returned $status instead of the original build failure." >&2
+  exit 1
+fi
+grep -F "installer -v 9.4.2 --esonly --edot" "$command_log" >/dev/null
+grep -F "fixture container output: logs fixture-elasticsearch" \
+  "$ci_root/build/e2e/elasticsearch.log" >/dev/null
+grep -F "fixture container output: logs fixture-collector" \
+  "$ci_root/build/e2e/collector.log" >/dev/null
+for signal in traces logs; do
+  jq -e '.hits.hits[0]._source["fixture.unmatched"] == true' \
+    "$ci_root/build/e2e/recent-$signal.json" >/dev/null
+done
+
 crash_bin="$TEMP_DIR/crash-bin"
 crash_state="$TEMP_DIR/crash-state"
 mkdir -p "$crash_bin" "$crash_state" "$TEMP_DIR/markers"
@@ -155,7 +229,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 hit() {
-  printf '{"hits":{"total":{"value":1},"hits":[{"_id":"fake","_source":%s}]}}\n' "$1"
+  local document="$1"
+  if [[ -n "${FAKE_CRASH_TIMESTAMP:-}" && "$document" == *'"@timestamp"'* ]]; then
+    document=$(jq --argjson timestamp "$FAKE_CRASH_TIMESTAMP" '.["@timestamp"] = $timestamp' <<<"$document")
+  fi
+  printf '{"hits":{"total":{"value":1},"hits":[{"_id":"fake","_source":%s}]}}\n' "$document"
 }
 case "$url" in
   */_count) echo '{"count":0}' ;;
@@ -298,11 +376,19 @@ run_crash_scenario() {
     FAKE_NY_STATUS="$ny_status" \
     FAKE_POLL_SPAN="$poll_span" \
     FAKE_OMIT_PATH_CONTROL="$omit_path" \
-    E2E_MARKER_DIR="$TEMP_DIR/markers" \
+    FAKE_CRASH_TIMESTAMP="${CRASH_TIMESTAMP:-}" \
+    E2E_STEP_COMMAND="${STEP_COMMAND:-}" \
+    E2E_MARKER_DIR="${STEP_MARKER_DIR-$TEMP_DIR/markers}" \
     E2E_ARTIFACT_DIR="$TEMP_DIR/$platform-$name" \
     "$crash_repository/scripts/e2e/verify.sh" "$platform" http://localhost:9200 \
     "not-a-real-key" >/dev/null 2>&1
 }
+
+cat >"$TEMP_DIR/step-hook.sh" <<'EOF'
+#!/usr/bin/env bash
+echo "$2:$E2E_DEVICE_ID" >>"$1"
+[[ "$2" != "${FAIL_STEP:-}" ]]
+EOF
 
 for platform in android ios; do
   case "$platform" in
@@ -319,6 +405,47 @@ for platform in android ios; do
     echo "Expected the $platform crash scenario to relaunch the app once." >&2
     exit 1
   fi
+
+  STEP_COMMAND="bash \"$TEMP_DIR/step-hook.sh\" \"$TEMP_DIR/steps.log\""
+  STEP_MARKER_DIR="$TEMP_DIR/nonexistent-markers"
+  : >"$TEMP_DIR/steps.log"
+  run_crash_scenario "$platform" hook-success 1 1
+  case "$platform" in
+    android) expected_device=emulator-5554 ;;
+    ios) expected_device=SIM-123 ;;
+  esac
+  printf 'berlin:%s\nnew-york:%s\ncrash:%s\n' \
+    "$expected_device" "$expected_device" "$expected_device" \
+    >"$TEMP_DIR/expected-steps.log"
+  diff -u "$TEMP_DIR/expected-steps.log" "$TEMP_DIR/steps.log"
+  for step in berlin new-york crash; do
+    if FAIL_STEP="$step" run_crash_scenario "$platform" "hook-failure-$step" 1 1; then
+      echo "Expected the $platform $step hook failure to fail verification." >&2
+      exit 1
+    fi
+    grep -F "UI step '$step' failed." \
+      "$TEMP_DIR/$platform-hook-failure-$step/verifier-output.txt" >/dev/null
+    test -s "$TEMP_DIR/$platform-hook-failure-$step/cluster-health.json"
+  done
+  unset STEP_COMMAND
+  # With neither hook nor markers, the two forecast prompts accept stdin.
+  STEP_MARKER_DIR=""
+  run_crash_scenario "$platform" hook-unset 1 1 <<< $'\n\n'
+  if grep -F "Running UI step:" "$TEMP_DIR/$platform-hook-unset/verifier-output.txt"; then
+    echo "An unset hook unexpectedly ran." >&2
+    exit 1
+  fi
+  unset STEP_MARKER_DIR
+
+  for timestamp in '1790000000123.456' '"1790000000123.456"'; do
+    CRASH_TIMESTAMP="$timestamp" run_crash_scenario "$platform" epoch-millis 1 1
+  done
+  if CRASH_TIMESTAMP='"1789999999123.456"' run_crash_scenario "$platform" stale-epoch-millis 1 1; then
+    echo "Expected a $platform crash timestamp older than the prompt to fail." >&2
+    exit 1
+  fi
+  grep -F "The crash record predates the Crash prompt" \
+    "$TEMP_DIR/$platform-stale-epoch-millis/verifier-output.txt" >/dev/null
 
   if run_crash_scenario "$platform" crash-no-exit 0 1; then
     echo "Expected a $platform crash scenario whose process never exits to fail." >&2

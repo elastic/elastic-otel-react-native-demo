@@ -1,0 +1,81 @@
+# Copyright Elastic Technologies Inc. and/or licensed to
+# Elastic Technologies Inc. under one or more contributor license
+# agreements. See the NOTICE file distributed with this work for
+# additional information regarding copyright ownership.
+# Elastic Technologies Inc. licenses this file to you under the Apache
+# License, Version 2.0 (the "License"); you may not use this file except
+# in compliance with the License. You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: 'Update {{ .package }}'
+pipelineid: '{{ .pipeline }}'
+
+scms:
+  default:
+    kind: github
+    spec:
+      owner: elastic
+      repository: elastic-otel-react-native-demo
+      branch: main
+      username: x-access-token
+      token: '{{ requiredEnv "GITHUB_TOKEN" }}'
+      commitusingapi: true
+
+sources:
+  npm:
+    name: 'Get the highest stable {{ .package }} release at least 7 days old'
+    kind: npm
+    spec:
+      name: '{{ .package }}'
+      versionfilter:
+        kind: semver
+        pattern: "*"
+      age:
+        minimum: 7d
+
+targets:
+  package:
+    name: 'Update {{ .package }} and regenerate its native dependencies'
+    kind: shell
+    scmid: default
+    disablesourceinput: true
+    spec:
+      command: |
+        set -e
+        # file/checksum ignores the exit code; a missing monitored file
+        # fails the pipeline and prevents a partial pull request.
+        trap '[ $? -eq 0 ] || rm -f package-lock.json' EXIT
+        mkdir -p build/tmp
+        export TMPDIR="$PWD/build/tmp"
+        npm ci --no-audit --no-fund
+        node .ci/updatecli/update-package.js '{{ .package }}' '{{ source "npm" }}'
+        npm install --no-audit --no-fund
+        npx --no-install elastic-otel-react-native setup-android
+        npm run ios:install
+      environments:
+        - name: PATH
+        - name: HOME
+        - name: CI
+          value: "1"
+      changedif:
+        kind: file/checksum
+        spec:
+          files:
+            - package.json
+            - package-lock.json
+            - ios/Podfile.lock
+
+actions:
+  default:
+    kind: github/pullrequest
+    scmid: default
+    title: 'Update {{ .package }} to {{ source "npm" }}'
+    spec:
+      labels: [dependencies]

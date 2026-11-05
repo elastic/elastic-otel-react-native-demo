@@ -39,3 +39,4 @@ coverage/
 *.jsbundle
 build/
 elastic-start-local/
+.ci-cache/

@@ -1,0 +1,60 @@
+# Copyright Elastic Technologies Inc. and/or licensed to
+# Elastic Technologies Inc. under one or more contributor license
+# agreements. See the NOTICE file distributed with this work for
+# additional information regarding copyright ownership.
+# Elastic Technologies Inc. licenses this file to you under the Apache
+# License, Version 2.0 (the "License"); you may not use this file except
+# in compliance with the License. You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: updatecli
+on:
+  schedule:
+    - cron: "0 6 * * 1-5"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: updatecli
+  cancel-in-progress: false
+jobs:
+  dependencies:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [bridge, react-native, safe-area]
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .node-version
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      # The exact workflow binding derives the O3 policy automatically.
+      - name: Get repository write token
+        id: repository-token
+        uses: elastic/oblt-actions/github/create-token@v1
+      - name: Update pod-affecting package
+        uses: elastic/oblt-actions/updatecli/run@v1
+        with:
+          version: v0.122.1
+          command: >-
+            apply --config .ci/updatecli/package.yml --values .ci/updatecli/${{ matrix.package }}.yml
+        env:
+          GITHUB_TOKEN: ${{ steps.repository-token.outputs.token }}

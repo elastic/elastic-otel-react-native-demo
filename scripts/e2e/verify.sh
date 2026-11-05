@@ -274,9 +274,20 @@ device_epoch() {
 }
 
 wait_for_operator() {
-  local prompt="$1"
-  local marker="$2"
-  if [[ -n "${E2E_MARKER_DIR:-}" ]]; then
+  local step="$1"
+  local prompt="$2"
+  local marker="$3"
+  if [[ -n "${E2E_STEP_COMMAND:-}" ]]; then
+    echo "Running UI step: $step"
+    if ! E2E_DEVICE_ID="$DEVICE_ID" bash -c "$E2E_STEP_COMMAND \"\$@\"" -- "$step"; then
+      echo "UI step '$step' failed." >&2
+      exit 1
+    fi
+    return
+  fi
+  if [[ -z "$marker" ]]; then
+    echo "$prompt"
+  elif [[ -n "${E2E_MARKER_DIR:-}" ]]; then
     echo "$prompt"
     echo "Waiting for $E2E_MARKER_DIR/$marker ..." >&2
     until [[ -f "$E2E_MARKER_DIR/$marker" ]]; do
@@ -318,6 +329,7 @@ EOF
 2. Wait until the Berlin forecast appears.
 EOF
   wait_for_operator \
+    "berlin" \
     "Continue after the successful Berlin forecast is visible." \
     "berlin-complete"
 
@@ -327,6 +339,7 @@ EOF
 4. Wait until the rejected-request error is visible.
 EOF
   wait_for_operator \
+    "new-york" \
     "Continue after the New York error is visible." \
     "new-york-complete"
 fi
@@ -432,7 +445,7 @@ crash_count() {
 
 if [[ "${E2E_VERIFY_ONLY:-0}" != "1" ]]; then
   crash_requested_at=$(device_epoch)
-  echo '5. Return to the city picker and press "Crash".'
+  wait_for_operator "crash" '5. Return to the city picker and press "Crash".' ""
   elapsed=0
   until [[ -z "$(app_running)" ]]; do
     if (( elapsed >= 180 )); then
@@ -472,7 +485,12 @@ if [[ -z "$crash_type" || -z "$crash_session" || "$crash_stacktrace" != *"$crash
   exit 1
 fi
 if [[ -n "${crash_requested_at:-}" ]]; then
-  crash_timestamp=$(field "$ARTIFACT_DIR/crash.json" '._source."@timestamp" | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601')
+  crash_timestamp=$(field "$ARTIFACT_DIR/crash.json" '._source."@timestamp" |
+    if (tostring | test("^[0-9]+(\\.[0-9]+)?$")) then
+      tonumber / 1000 | floor
+    else
+      sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601
+    end')
   if [[ -z "$crash_timestamp" ]] || (( crash_timestamp < crash_requested_at )); then
     echo "The crash record predates the Crash prompt; it is not from this run." >&2
     exit 1

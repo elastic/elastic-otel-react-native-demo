@@ -16,15 +16,15 @@
     "android:check": "npx --no-install elastic-otel-react-native setup-android && git diff --exit-code -- android",
     "check": "./checks.sh",
     "e2e:test": "./scripts/e2e/test-verify.sh",
-    "format:check": "prettier --check App.tsx DemoButton.tsx __tests__/App.test.tsx README.md package.json app.json .eslintrc.js jest.config.js metro.config.js \"scripts/**/*.md\" \"scripts/**/*.mjs\"",
+    "format:check": "prettier --check App.tsx DemoButton.tsx \"__tests__/*\" README.md package.json app.json .eslintrc.js jest.config.js metro.config.js \"scripts/**/*.md\" \"scripts/**/*.mjs\" .ci/updatecli/update-package.js .github/renovate.json .github/CI.md",
     "ios": "npm run ios:run",
     "ios:autolink:check": "node scripts/check-ios-autolinking.mjs",
     "ios:build": "mkdir -p build/tmp && GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.bareRepository GIT_CONFIG_VALUE_0=all TMPDIR=\"$PWD/build/tmp\" xcodebuild -workspace ios/ReactNativeDemoApp.xcworkspace -scheme ReactNativeDemoApp -configuration Release -destination \"generic/platform=iOS Simulator\" -derivedDataPath ios/build CODE_SIGNING_ALLOWED=NO",
-    "ios:check": "npx --no-install elastic-otel-react-native setup-ios && git diff --exit-code -- ios && npm run ios:autolink:check && npm run ios:format:check && mkdir -p build/tmp && cd ios && TMPDIR=\"../build/tmp\" pod install --deployment",
+    "ios:check": "npx --no-install elastic-otel-react-native setup-ios && git diff --exit-code --ignore-matching-lines='^COCOAPODS: ' -- ios && npm run ios:autolink:check && npm run ios:format:check && mkdir -p build/tmp && cd ios && TMPDIR=\"../build/tmp\" pod install --deployment",
     "ios:format:check": "xcrun swift format lint --strict --recursive ios/ReactNativeDemoApp",
     "ios:install": "npx --no-install elastic-otel-react-native setup-ios && mkdir -p build/tmp && cd ios && TMPDIR=\"../build/tmp\" pod install",
     "ios:run": "mkdir -p build/tmp && GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.bareRepository GIT_CONFIG_VALUE_0=all TMPDIR=\"$PWD/build/tmp\" react-native run-ios",
-    "lint": "eslint .",
+    "lint": "eslint . && eslint --no-ignore .ci/updatecli/update-package.js",
     "lockfile:check": "node scripts/check-lockfile.mjs",
     "start": "react-native start",
     "test": "jest",
@@ -33,7 +33,7 @@
     "headers:fix": "node scripts/check-license-headers.mjs --fix"
   },
   "dependencies": {
-    "@elastic/otel-react-native": "file:../elastic-otel-react-native",
+    "@elastic/otel-react-native": "0.1.0",
     "react": "19.2.3",
     "react-native": "0.87.1",
     "react-native-safe-area-context": "^5.9.1"
@@ -57,6 +57,7 @@
     "jest": "^29.6.3",
     "prettier": "2.8.8",
     "react-test-renderer": "19.2.3",
+    "semver": "^7.8.6",
     "typescript": "^6.0.3"
   },
   "engines": {
