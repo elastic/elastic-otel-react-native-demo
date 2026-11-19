@@ -3,7 +3,7 @@
 This repository demonstrates the [Elastic Distribution of OpenTelemetry React
 Native](https://github.com/elastic/elastic-otel-react-native) (EDOT React Native) in an end-to-end
 weather application for Android and iOS. See the
-[EDOT React Native documentation](https://github.com/elastic/elastic-otel-react-native/blob/main/docs/reference/edot-react-native/index.md)
+[EDOT React Native documentation](https://www.elastic.co/docs/reference/opentelemetry/edot-sdks/react-native/getting-started)
 for the full SDK reference.
 
 Choose a city, request its current weather through a local instrumented backend, and inspect the
@@ -71,7 +71,8 @@ part of [Step 1](#1-start-the-elastic-stack) via start-local.
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) 22.11 or newer, with npm.
+- [Node.js](https://nodejs.org/) 22.13 or newer on the 22 line, 24.3 or newer on the 24 line, or 26 or
+  newer, with npm.
 - [Docker](https://www.docker.com/).
 - For Android: JDK 21 and an
   [Android emulator](https://developer.android.com/studio/run/emulator#get-started) running API
@@ -191,10 +192,9 @@ Useful span and log names:
   `forecast-back-button`.
 - The `app.crash` event after the relaunch.
 
-For a more detailed overview, take a look at how to Visualize telemetry in the docs for
-[Android](https://www.elastic.co/docs/reference/opentelemetry/edot-sdks/android/getting-started#visualize-telemetry)
-and
-[iOS](https://www.elastic.co/docs/reference/opentelemetry/edot-sdks/ios/getting-started#visualize-telemetry).
+For a more detailed overview, see
+[Visualize telemetry](https://www.elastic.co/docs/reference/opentelemetry/edot-sdks/react-native/getting-started#visualize-telemetry)
+in the EDOT React Native documentation.
 
 ## Emulator, simulator, and physical-device networking
 
