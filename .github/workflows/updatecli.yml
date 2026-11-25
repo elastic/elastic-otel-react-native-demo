@@ -49,9 +49,9 @@ jobs:
       # The exact workflow binding derives the O3 policy automatically.
       - name: Get repository write token
         id: repository-token
-        uses: elastic/oblt-actions/github/create-token@v1
+        uses: elastic/oblt-actions/github/create-token@37d142a1daa0cac6eaa7bb622a6dfaf1124eea0e # v1
       - name: Update pod-affecting package
-        uses: elastic/oblt-actions/updatecli/run@v1
+        uses: elastic/oblt-actions/updatecli/run@37d142a1daa0cac6eaa7bb622a6dfaf1124eea0e # v1
         with:
           version: v0.122.1
           command: >-
